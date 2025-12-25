@@ -1,0 +1,129 @@
+# TP Opportunity Finder - Cursor AI Rules
+
+## Project Context
+You are building a transfer pricing opportunity identification app for Luxembourg.
+The app analyses financial accounts to detect intercompany transactions and score
+companies based on their TP advisory potential.
+
+## Tech Stack
+- Next.js 14 with App Router (NOT Pages Router)
+- TypeScript (strict mode)
+- Tailwind CSS + shadcn/ui
+- Supabase (PostgreSQL, Auth, Storage)
+- pdf-parse for PDF extraction
+- Claude API for AI analysis
+
+## Code Style
+- Use TypeScript with explicit types (no 'any')
+- Prefer 'const' over 'let'
+- Use arrow functions for components
+- Use async/await over .then()
+- Destructure props and state
+- Use early returns for guard clauses
+- Maximum line length: 100 characters
+- Use template literals for string interpolation
+
+## File Naming
+- Components: PascalCase (CompanyCard.tsx)
+- Utilities: camelCase (formatCurrency.ts)
+- Types: PascalCase (Company.ts)
+- API routes: route.ts in folders
+- Hooks: camelCase starting with 'use' (useCompanies.ts)
+
+## Component Patterns
+- Use 'use client' only when needed (interactivity, hooks)
+- Server Components by default
+- Collocate components with their pages when specific
+- Share components in /components when reused
+- Props interface above component definition
+- Export components as named exports (not default)
+
+## Supabase Patterns
+- Use server client in Server Components and API routes
+- Use browser client in Client Components
+- Always handle errors explicitly
+- Use RLS policies for security
+- Type database queries with generated types
+
+## TP Domain Knowledge
+- All analysis must reference OECD TP Guidelines and Luxembourg law
+- Focus on intragroup financing (Art. 56/56bis LIR)
+- **GOAL: Identify ALL companies with IC transactions as opportunities**
+- **DO NOT filter out companies - prioritise them for outreach**
+- CRITICAL FLAG: Zero spread on financing = HIGH PRIORITY (no TP policy)
+- Detect: IC loans, management fees, royalties, guarantees, cash pooling
+- Consider thin capitalisation (D/E > 4:1 flagged)
+- Consider ATAD interest limitation (30% EBITDA)
+- Every IC transaction is a potential BD opportunity
+
+## Financial Data Patterns
+- Parse both French and English financial terms
+- Handle Luxembourg statutory accounts format
+- Extract: balance sheet, P&L, notes to accounts
+- Key items (French): créances/dettes entreprises liées, intérêts, frais de gestion
+- Key items (English): amounts owed by/to affiliated, interest, management fees
+- Handle number formats: European (1.234,56) and UK/US (1,234.56)
+- Handle parentheses for negatives: (1,234) = -1,234
+
+## Error Handling
+- Use try-catch in async functions
+- Return typed error responses from API routes
+- Show user-friendly error messages
+- Log errors server-side with context
+- Never expose internal errors to users
+
+## Security
+- Validate all inputs with Zod
+- Sanitise file uploads (PDF only, max 50MB)
+- Use parameterised queries (Supabase handles this)
+- Never expose API keys client-side
+- Validate file types server-side, not just client-side
+
+## UI/UX Guidelines
+- Use shadcn/ui components consistently
+- Loading states for all async operations
+- Toast notifications for user feedback
+- Responsive design (mobile-first)
+- Accessible (proper labels, ARIA where needed)
+- Colour scheme:
+  - Primary: #1e3a5f (deep blue)
+  - Accent: #d4a853 (gold)
+  - Background: #f8f9fa (off-white)
+  - Success: green-600
+  - Warning: amber-500
+  - Error: red-600
+
+## Database Conventions
+- Use UUID for primary keys
+- Include created_at and updated_at timestamps
+- Use DECIMAL(20,2) for financial amounts
+- Use VARCHAR with appropriate limits
+- Create indexes for frequently queried columns
+- Use enums via CHECK constraints or separate tables
+
+## API Response Format
+```typescript
+// Success
+{ success: true, data: T }
+
+// Error
+{ success: false, error: { code: string, message: string } }
+
+// Paginated
+{ success: true, data: T[], pagination: { page, limit, total, totalPages } }
+```
+
+## Testing
+- Test extraction patterns against sample data
+- Validate scoring algorithm with known inputs
+- Test edge cases: empty PDFs, corrupted files, unusual formats
+
+## Comments
+- Use JSDoc for public functions
+- Explain complex business logic
+- Reference regulations when implementing TP rules
+- TODO comments for future work
+
+## Git Commits
+- Conventional commits: feat:, fix:, chore:, docs:
+- Reference prompt numbers: "feat: implement prompt 5 - dashboard layout"
