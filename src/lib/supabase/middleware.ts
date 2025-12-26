@@ -55,6 +55,7 @@ export const isProtectedRoute = (pathname: string): boolean => {
     '/processing',
     '/analytics',
     '/settings',
+    '/opportunities',
   ];
 
   // Dashboard root is also protected

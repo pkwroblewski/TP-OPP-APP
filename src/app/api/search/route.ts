@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { checkRateLimit, getClientIdentifier, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
+
+export const dynamic = 'force-dynamic';
 
 interface SearchResult {
   type: 'company' | 'opportunity';
@@ -12,6 +15,17 @@ interface SearchResult {
 
 export async function GET(request: NextRequest) {
   try {
+    // Rate limiting
+    const clientId = getClientIdentifier(request);
+    const { allowed, resetTime } = checkRateLimit(
+      `${clientId}:search`,
+      RATE_LIMITS.default
+    );
+
+    if (!allowed) {
+      return rateLimitResponse(resetTime);
+    }
+
     const supabase = await createClient();
 
     // Check authentication
@@ -126,8 +140,7 @@ export async function GET(request: NextRequest) {
         totalCount: results.length,
       },
     });
-  } catch (error) {
-    console.error('Search error:', error);
+  } catch {
     return NextResponse.json(
       { error: 'An unexpected error occurred' },
       { status: 500 }

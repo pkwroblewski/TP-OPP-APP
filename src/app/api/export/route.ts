@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { checkRateLimit, getClientIdentifier, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
+
+export const dynamic = 'force-dynamic';
 
 // Helper to convert data to CSV
 function convertToCSV(data: Record<string, unknown>[], columns: string[]): string {
@@ -28,6 +31,17 @@ function convertToCSV(data: Record<string, unknown>[], columns: string[]): strin
 
 export async function GET(request: NextRequest) {
   try {
+    // Rate limiting
+    const clientId = getClientIdentifier(request);
+    const { allowed, resetTime } = checkRateLimit(
+      `${clientId}:export`,
+      RATE_LIMITS.export
+    );
+
+    if (!allowed) {
+      return rateLimitResponse(resetTime);
+    }
+
     const supabase = await createClient();
 
     // Check authentication
@@ -360,8 +374,7 @@ export async function GET(request: NextRequest) {
         'Content-Disposition': `attachment; filename="${filename}.csv"`,
       },
     });
-  } catch (error) {
-    console.error('Export error:', error);
+  } catch {
     return NextResponse.json(
       { error: 'An error occurred during export' },
       { status: 500 }

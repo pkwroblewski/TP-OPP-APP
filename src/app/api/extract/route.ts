@@ -3,10 +3,13 @@ import { createClient } from '@/lib/supabase/server';
 import { extractFinancialDataFromPdf } from '@/lib/services/pdfExtractor';
 import type { FinancialDataInsert, ICTransactionInsert } from '@/types/database';
 import { checkRateLimit, getClientIdentifier, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
+import { logger } from '@/lib/logger';
+
+export const dynamic = 'force-dynamic';
 
 // Parse PDF to extract text using pdf-parse v1 (stable version)
 async function parsePdf(buffer: Buffer): Promise<string> {
-  console.log('Starting PDF parsing, buffer size:', buffer.length);
+  logger.debug('Starting PDF parsing', { bufferSize: buffer.length });
 
   try {
     // pdf-parse v1 uses CommonJS and a simple function API
@@ -14,26 +17,20 @@ async function parsePdf(buffer: Buffer): Promise<string> {
     const pdfParse = require('pdf-parse');
 
     const data = await pdfParse(buffer);
-    console.log('PDF text extracted, length:', data.text.length);
+    logger.debug('PDF text extracted', { textLength: data.text.length });
     return data.text;
   } catch (error) {
-    console.error('PDF parsing error:', error);
-    if (error instanceof Error) {
-      console.error('PDF parse error name:', error.name);
-      console.error('PDF parse error message:', error.message);
-      console.error('PDF parse error stack:', error.stack);
-    }
+    logger.error('PDF parsing error', error);
     throw error;
   }
 }
 
 export async function POST(request: NextRequest) {
-  console.log('=== Extract API called ===');
+  logger.debug('Extract API called');
 
   try {
     // Rate limiting check
     const clientId = getClientIdentifier(request);
-    console.log('Client ID:', clientId);
     const { allowed, resetTime } = checkRateLimit(
       `${clientId}:extract`,
       RATE_LIMITS.extract
@@ -134,21 +131,19 @@ export async function POST(request: NextRequest) {
       .eq('id', filingId);
 
     // Extract financial data using AI
-    console.log('Starting AI extraction for filing:', filingId);
-    console.log('PDF text length:', pdfText.length);
+    logger.debug('Starting AI extraction', { filingId, textLength: pdfText.length });
 
     const extractionResult = await extractFinancialDataFromPdf(pdfText);
 
-    console.log('Extraction result:', {
+    logger.debug('Extraction result', {
       success: extractionResult.success,
       hasFinancialData: !!extractionResult.financialData,
       icTransactionsCount: extractionResult.icTransactions.length,
       confidence: extractionResult.confidence,
-      error: extractionResult.error,
     });
 
     if (!extractionResult.success || !extractionResult.financialData) {
-      console.error('Extraction failed for filing:', filingId, 'Error:', extractionResult.error);
+      logger.error('Extraction failed', new Error(extractionResult.error || 'Unknown error'), { filingId });
 
       await supabase
         .from('filings')
@@ -209,7 +204,7 @@ export async function POST(request: NextRequest) {
       .insert(financialDataRecord);
 
     if (financialError) {
-      console.error('Failed to save financial data:', financialError);
+      logger.error('Failed to save financial data', financialError);
     }
 
     // Save IC transactions
@@ -236,7 +231,7 @@ export async function POST(request: NextRequest) {
         .insert(icTransactions);
 
       if (txError) {
-        console.error('Failed to save IC transactions:', txError);
+        logger.error('Failed to save IC transactions', txError);
       }
     }
 
@@ -290,7 +285,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Extraction error:', error);
+    logger.error('Extraction error', error);
     return NextResponse.json(
       { error: 'An unexpected error occurred during extraction' },
       { status: 500 }
@@ -357,7 +352,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Status check error:', error);
+    logger.error('Status check error', error);
     return NextResponse.json(
       { error: 'An unexpected error occurred' },
       { status: 500 }

@@ -3,6 +3,9 @@ import { createClient } from '@/lib/supabase/server';
 import { analyzeTPOpportunity, type TPAnalysisInput } from '@/lib/services/tpAnalyser';
 import type { FinancialData, ICTransaction } from '@/types/database';
 import { checkRateLimit, getClientIdentifier, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
+import { logger } from '@/lib/logger';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
@@ -130,7 +133,7 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (error) {
-        console.error('Failed to update assessment:', error);
+        logger.error('Failed to update assessment', error);
         return NextResponse.json(
           { error: 'Failed to save assessment', details: error.message },
           { status: 500 }
@@ -146,7 +149,7 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (error) {
-        console.error('Failed to insert assessment:', error);
+        logger.error('Failed to insert assessment', error);
         return NextResponse.json(
           { error: 'Failed to save assessment', details: error.message },
           { status: 500 }
@@ -172,7 +175,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Analysis error:', error);
+    logger.error('Analysis error', error);
     return NextResponse.json(
       { error: 'An unexpected error occurred during analysis' },
       { status: 500 }
@@ -343,7 +346,7 @@ export async function PUT(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Batch analysis error:', error);
+    logger.error('Batch analysis error', error);
     return NextResponse.json(
       { error: 'An unexpected error occurred during batch analysis' },
       { status: 500 }
@@ -402,7 +405,7 @@ export async function GET(request: NextRequest) {
       data: assessment,
     });
   } catch (error) {
-    console.error('Get assessment error:', error);
+    logger.error('Get assessment error', error);
     return NextResponse.json(
       { error: 'An unexpected error occurred' },
       { status: 500 }

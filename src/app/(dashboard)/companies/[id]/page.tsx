@@ -82,7 +82,6 @@ export default function CompanyDetailPage() {
 
   const handleExport = () => {
     // TODO: Implement export functionality
-    console.log('Exporting report...');
   };
 
   if (isLoading) {

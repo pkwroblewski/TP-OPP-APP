@@ -110,6 +110,7 @@ export default function ProcessingPage() {
   const [loading, setLoading] = useState(true);
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
   const [bulkProcessing, setBulkProcessing] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const supabase = createClient();
 
@@ -217,11 +218,27 @@ export default function ProcessingPage() {
   };
 
   const deleteItem = async (filingId: string) => {
+    // Prevent multiple simultaneous deletes
+    if (deletingId === filingId) return;
+
+    setDeletingId(filingId);
     try {
-      await supabase.from('filings').delete().eq('id', filingId);
+      // Delete related records first (cascade)
+      await supabase.from('ic_transactions').delete().eq('filing_id', filingId);
+      await supabase.from('financial_data').delete().eq('filing_id', filingId);
+      await supabase.from('uploaded_files').delete().eq('filing_id', filingId);
+
+      // Delete the filing
+      const { error } = await supabase.from('filings').delete().eq('id', filingId);
+
+      if (error) throw error;
+
       await fetchProcessingQueue();
     } catch (error) {
       console.error('Delete error:', error);
+      alert(`Failed to delete item: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setDeletingId(null);
     }
   };
 

@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { FinancialData, ICTransaction, TPAssessmentInsert } from '@/types/database';
+import { logger } from '@/lib/logger';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -302,7 +303,7 @@ Response format:
 
     return JSON.parse(jsonMatch[0]);
   } catch (error) {
-    console.error('AI summary generation failed:', error);
+    logger.error('AI summary generation failed', error);
     return {
       summary: `${input.companyName} shows transfer pricing exposure with a risk score of ${scores.totalScore}/100. Priority Tier ${scores.priorityTier} indicates ${scores.priorityTier === 'A' ? 'high' : scores.priorityTier === 'B' ? 'medium' : 'lower'} potential for TP advisory services.`,
       recommendedApproach: scores.priorityTier === 'A'
@@ -420,7 +421,7 @@ export async function analyzeTPOpportunity(
       assessment,
     };
   } catch (error) {
-    console.error('TP analysis error:', error);
+    logger.error('TP analysis error', error);
     return {
       success: false,
       assessment: null,

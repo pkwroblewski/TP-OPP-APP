@@ -7,6 +7,9 @@ import type {
   UploadedFileInsert,
   FilingInsert
 } from '@/types/database';
+import { logger } from '@/lib/logger';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
@@ -83,7 +86,7 @@ export async function POST(request: NextRequest) {
       });
 
     if (uploadError) {
-      console.error('Storage upload error:', uploadError);
+      logger.error('Storage upload error', uploadError);
       return NextResponse.json(
         { error: 'Failed to upload file to storage', details: uploadError.message },
         { status: 500 }
@@ -107,7 +110,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (batchError) {
-      console.error('Batch creation error:', batchError);
+      logger.error('Batch creation error', batchError);
       return NextResponse.json(
         { error: 'Failed to create upload batch', details: batchError.message },
         { status: 500 }
@@ -152,7 +155,7 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (companyError) {
-        console.error('Company creation error:', companyError);
+        logger.error('Company creation error', companyError);
         return NextResponse.json(
           { error: 'Failed to create company record', details: companyError.message },
           { status: 500 }
@@ -178,7 +181,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (fileError) {
-      console.error('File record creation error:', fileError);
+      logger.error('File record creation error', fileError);
       return NextResponse.json(
         { error: 'Failed to create file record', details: fileError.message },
         { status: 500 }
@@ -200,7 +203,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (filingError) {
-      console.error('Filing creation error:', filingError);
+      logger.error('Filing creation error', filingError);
       return NextResponse.json(
         { error: 'Failed to create filing record', details: filingError.message },
         { status: 500 }
@@ -233,7 +236,7 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({ filingId: filing.id }),
     }).catch((err) => {
-      console.error('Failed to trigger extraction:', err);
+      logger.error('Failed to trigger extraction', err);
     });
 
     return NextResponse.json({
@@ -248,7 +251,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Upload error:', error);
+    logger.error('Upload error', error);
     return NextResponse.json(
       { error: 'An unexpected error occurred during upload' },
       { status: 500 }
