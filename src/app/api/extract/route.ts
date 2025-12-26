@@ -4,18 +4,36 @@ import { extractFinancialDataFromPdf } from '@/lib/services/pdfExtractor';
 import type { FinancialDataInsert, ICTransactionInsert } from '@/types/database';
 import { checkRateLimit, getClientIdentifier, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
 
-// Parse PDF to extract text using dynamic require for CommonJS module
+// Parse PDF to extract text using pdf-parse v1 (stable version)
 async function parsePdf(buffer: Buffer): Promise<string> {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const pdfParse = require('pdf-parse');
-  const data = await pdfParse(buffer);
-  return data.text;
+  console.log('Starting PDF parsing, buffer size:', buffer.length);
+
+  try {
+    // pdf-parse v1 uses CommonJS and a simple function API
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const pdfParse = require('pdf-parse');
+
+    const data = await pdfParse(buffer);
+    console.log('PDF text extracted, length:', data.text.length);
+    return data.text;
+  } catch (error) {
+    console.error('PDF parsing error:', error);
+    if (error instanceof Error) {
+      console.error('PDF parse error name:', error.name);
+      console.error('PDF parse error message:', error.message);
+      console.error('PDF parse error stack:', error.stack);
+    }
+    throw error;
+  }
 }
 
 export async function POST(request: NextRequest) {
+  console.log('=== Extract API called ===');
+
   try {
     // Rate limiting check
     const clientId = getClientIdentifier(request);
+    console.log('Client ID:', clientId);
     const { allowed, resetTime } = checkRateLimit(
       `${clientId}:extract`,
       RATE_LIMITS.extract
@@ -116,9 +134,22 @@ export async function POST(request: NextRequest) {
       .eq('id', filingId);
 
     // Extract financial data using AI
+    console.log('Starting AI extraction for filing:', filingId);
+    console.log('PDF text length:', pdfText.length);
+
     const extractionResult = await extractFinancialDataFromPdf(pdfText);
 
+    console.log('Extraction result:', {
+      success: extractionResult.success,
+      hasFinancialData: !!extractionResult.financialData,
+      icTransactionsCount: extractionResult.icTransactions.length,
+      confidence: extractionResult.confidence,
+      error: extractionResult.error,
+    });
+
     if (!extractionResult.success || !extractionResult.financialData) {
+      console.error('Extraction failed for filing:', filingId, 'Error:', extractionResult.error);
+
       await supabase
         .from('filings')
         .update({ extraction_status: 'failed' })

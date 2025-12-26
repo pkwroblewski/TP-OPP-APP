@@ -177,11 +177,31 @@ export async function extractFinancialDataFromPdf(
   pdfText: string
 ): Promise<ExtractionResult> {
   try {
+    // Check if API key is configured
+    if (!process.env.ANTHROPIC_API_KEY) {
+      console.error('ANTHROPIC_API_KEY is not configured');
+      return {
+        success: false,
+        financialData: null,
+        icTransactions: [],
+        detectedLanguage: null,
+        detectedFiscalYear: null,
+        detectedCompanyName: null,
+        detectedRcsNumber: null,
+        confidence: 'low',
+        rawText: pdfText,
+        error: 'Anthropic API key is not configured',
+      };
+    }
+
     // Truncate text if too long (Claude has context limits)
     const maxTextLength = 100000;
     const truncatedText = pdfText.length > maxTextLength
       ? pdfText.substring(0, maxTextLength) + '\n\n[TEXT TRUNCATED]'
       : pdfText;
+
+    console.log('Calling Anthropic API for extraction...');
+    console.log('Text length:', truncatedText.length);
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
@@ -193,6 +213,8 @@ export async function extractFinancialDataFromPdf(
         },
       ],
     });
+
+    console.log('Anthropic API response received');
 
     // Extract JSON from response
     const responseText = message.content[0].type === 'text'
@@ -257,6 +279,12 @@ export async function extractFinancialDataFromPdf(
     };
   } catch (error) {
     console.error('Extraction error:', error);
+    // Log more details for debugging
+    if (error instanceof Error) {
+      console.error('Error name:', error.name);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+    }
     return {
       success: false,
       financialData: null,
