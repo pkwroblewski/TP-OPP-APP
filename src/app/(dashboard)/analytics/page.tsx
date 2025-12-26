@@ -2,8 +2,6 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -13,83 +11,58 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  BarChart3,
-  TrendingUp,
-  TrendingDown,
-  Building2,
-  FileText,
-  Target,
-  DollarSign,
-  Percent,
   RefreshCw,
-  ArrowUpRight,
-  Globe,
-  Banknote,
-  Scale,
-  AlertTriangle,
+  Building2,
+  Wallet,
+  BarChart3,
+  Percent,
 } from 'lucide-react';
+import {
+  StatsCard,
+  ScoreDistributionChart,
+  PriorityTierChart,
+  ICVolumeChart,
+  PipelineFunnel,
+  UploadTrendsChart,
+  TopOpportunitiesTable,
+} from '@/components/analytics';
 
 interface AnalyticsData {
   totalCompanies: number;
-  totalFilings: number;
-  totalAssessments: number;
-  companiesWithAssessments: number;
+  totalIcVolume: number;
+  avgScore: number;
+  conversionRate: number;
 
+  // For charts
+  assessments: Array<{ total_score: number | null; priority_tier: string | null }>;
   tierDistribution: { tier: string; count: number }[];
-  statusDistribution: { status: string; count: number }[];
 
-  avgTotalScore: number;
-  avgFinancingRisk: number;
-  avgServicesRisk: number;
-  avgDocumentationRisk: number;
-
-  icIndicators: {
-    hasIcFinancing: number;
-    hasIcServices: number;
-    hasIcRoyalties: number;
-    hasCrossBorder: number;
-    hasThinCap: number;
+  icVolumeByType: {
+    financing: number;
+    services: number;
+    royalties: number;
+    guarantees: number;
   };
 
-  topOpportunities: Array<{
-    companyName: string;
-    companyId: string;
-    totalScore: number;
-    estimatedIcVolume: number;
-    priorityTier: string;
-  }>;
+  pipelineStats: {
+    uploaded: number;
+    extracted: number;
+    analysed: number;
+    contacted: number;
+    won: number;
+  };
 
-  recentActivity: Array<{
-    type: string;
+  uploadTrends: Array<{ date: string; count: number }>;
+
+  topOpportunities: Array<{
+    id: string;
     companyName: string;
-    date: string;
-    details: string;
+    score: number;
+    tier: string;
+    icVolume: number;
+    keyFinding: string;
   }>;
 }
-
-const TIER_COLORS = {
-  A: 'bg-red-500',
-  B: 'bg-amber-500',
-  C: 'bg-emerald-500',
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  new: 'bg-slate-400',
-  contacted: 'bg-blue-500',
-  meeting_scheduled: 'bg-amber-500',
-  proposal_sent: 'bg-purple-500',
-  won: 'bg-emerald-500',
-  lost: 'bg-red-500',
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  new: 'New',
-  contacted: 'Contacted',
-  meeting_scheduled: 'Meeting',
-  proposal_sent: 'Proposal',
-  won: 'Won',
-  lost: 'Lost',
-};
 
 export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsData | null>(null);
@@ -112,7 +85,11 @@ export default function AnalyticsPage() {
       setAvailableYears(years);
 
       // Base query filters
-      let assessmentsQuery = supabase.from('tp_assessments').select('*, companies(name)');
+      let assessmentsQuery = supabase.from('tp_assessments').select(`
+        *,
+        companies(name)
+      `);
+
       if (fiscalYear !== 'all') {
         assessmentsQuery = assessmentsQuery.eq('fiscal_year', parseInt(fiscalYear));
       }
@@ -120,15 +97,19 @@ export default function AnalyticsPage() {
       // Fetch all data in parallel
       const [
         { count: totalCompanies },
-        { count: totalFilings },
         { data: assessments },
+        { data: filings },
+        { data: financialData },
       ] = await Promise.all([
         supabase.from('companies').select('*', { count: 'exact', head: true }),
-        supabase.from('filings').select('*', { count: 'exact', head: true }),
         assessmentsQuery,
+        supabase.from('filings').select('created_at, extraction_status'),
+        supabase.from('financial_data').select('ic_loans_receivable, ic_loans_payable, management_fees, service_fees_ic, royalty_expense'),
       ]);
 
       const assessmentsList = assessments || [];
+      const filingsList = filings || [];
+      const financialList = financialData || [];
 
       // Calculate tier distribution
       const tierCounts: Record<string, number> = { A: 0, B: 0, C: 0 };
@@ -138,82 +119,120 @@ export default function AnalyticsPage() {
         }
       });
 
-      // Calculate status distribution
-      const statusCounts: Record<string, number> = {};
+      // Calculate average score
+      const withScores = assessmentsList.filter((a) => a.total_score !== null);
+      const avgScore = withScores.length > 0
+        ? withScores.reduce((sum, a) => sum + (a.total_score || 0), 0) / withScores.length
+        : 0;
+
+      // Calculate total IC volume from financial data
+      const totalIcVolume = financialList.reduce((sum, f) => {
+        return sum +
+          Math.abs(f.ic_loans_receivable || 0) +
+          Math.abs(f.ic_loans_payable || 0) +
+          Math.abs(f.management_fees || 0) +
+          Math.abs(f.service_fees_ic || 0) +
+          Math.abs(f.royalty_expense || 0);
+      }, 0);
+
+      // Calculate IC volume by type
+      const icVolumeByType = {
+        financing: financialList.reduce((sum, f) =>
+          sum + Math.abs(f.ic_loans_receivable || 0) + Math.abs(f.ic_loans_payable || 0), 0),
+        services: financialList.reduce((sum, f) =>
+          sum + Math.abs(f.management_fees || 0) + Math.abs(f.service_fees_ic || 0), 0),
+        royalties: financialList.reduce((sum, f) =>
+          sum + Math.abs(f.royalty_expense || 0), 0),
+        guarantees: 0, // Placeholder - add if you have guarantee data
+      };
+
+      // Pipeline stats
+      const statusCounts: Record<string, number> = {
+        new: 0,
+        contacted: 0,
+        meeting_scheduled: 0,
+        proposal_sent: 0,
+        won: 0,
+        lost: 0,
+      };
       assessmentsList.forEach((a) => {
         const status = a.outreach_status || 'new';
         statusCounts[status] = (statusCounts[status] || 0) + 1;
       });
 
-      // Calculate average scores
-      const withScores = assessmentsList.filter((a) => a.total_score !== null);
-      const avgTotalScore = withScores.length > 0
-        ? withScores.reduce((sum, a) => sum + (a.total_score || 0), 0) / withScores.length
-        : 0;
-
-      const avgFinancingRisk = withScores.length > 0
-        ? withScores.reduce((sum, a) => sum + (a.financing_risk_score || 0), 0) / withScores.length
-        : 0;
-
-      const avgServicesRisk = withScores.length > 0
-        ? withScores.reduce((sum, a) => sum + (a.services_risk_score || 0), 0) / withScores.length
-        : 0;
-
-      const avgDocumentationRisk = withScores.length > 0
-        ? withScores.reduce((sum, a) => sum + (a.documentation_risk_score || 0), 0) / withScores.length
-        : 0;
-
-      // IC Indicators
-      const icIndicators = {
-        hasIcFinancing: assessmentsList.filter((a) => a.has_ic_financing).length,
-        hasIcServices: assessmentsList.filter((a) => a.has_ic_services).length,
-        hasIcRoyalties: assessmentsList.filter((a) => a.has_ic_royalties).length,
-        hasCrossBorder: assessmentsList.filter((a) => a.has_cross_border_ic).length,
-        hasThinCap: assessmentsList.filter((a) => a.has_thin_cap_indicators).length,
+      const pipelineStats = {
+        uploaded: filingsList.length,
+        extracted: filingsList.filter(f => f.extraction_status === 'completed').length,
+        analysed: assessmentsList.length,
+        contacted: statusCounts.contacted + statusCounts.meeting_scheduled + statusCounts.proposal_sent + statusCounts.won,
+        won: statusCounts.won,
       };
+
+      // Conversion rate (won / total assessments)
+      const conversionRate = assessmentsList.length > 0
+        ? (statusCounts.won / assessmentsList.length) * 100
+        : 0;
+
+      // Upload trends (last 30 days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const uploadsByDate: Record<string, number> = {};
+      filingsList.forEach((f) => {
+        const date = new Date(f.created_at).toISOString().split('T')[0];
+        if (new Date(date) >= thirtyDaysAgo) {
+          uploadsByDate[date] = (uploadsByDate[date] || 0) + 1;
+        }
+      });
+
+      // Fill in missing dates with 0
+      const uploadTrends: Array<{ date: string; count: number }> = [];
+      for (let d = new Date(thirtyDaysAgo); d <= new Date(); d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toISOString().split('T')[0];
+        uploadTrends.push({
+          date: dateStr,
+          count: uploadsByDate[dateStr] || 0,
+        });
+      }
 
       // Top opportunities
       const topOpportunities = assessmentsList
         .filter((a) => a.total_score !== null)
         .sort((a, b) => (b.total_score || 0) - (a.total_score || 0))
-        .slice(0, 5)
-        .map((a) => ({
-          companyName: (a.companies as { name: string } | null)?.name || 'Unknown',
-          companyId: a.company_id || '',
-          totalScore: a.total_score || 0,
-          estimatedIcVolume: a.estimated_ic_volume || 0,
-          priorityTier: a.priority_tier || 'C',
-        }));
+        .slice(0, 10)
+        .map((a) => {
+          // Determine key finding
+          let keyFinding = 'Standard IC transactions';
+          if (a.has_rate_anomalies) keyFinding = 'Zero spread on IC financing';
+          else if (a.has_thin_cap_indicators) keyFinding = 'Thin capitalisation indicators';
+          else if (a.likely_needs_local_file) keyFinding = 'Local File documentation required';
+          else if (a.has_ic_financing) keyFinding = 'IC financing structure';
+          else if (a.has_ic_services) keyFinding = 'Management/service fees';
 
-      // Recent activity (use latest assessments)
-      const recentAssessments = [...assessmentsList]
-        .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-        .slice(0, 5);
-
-      const recentActivity = recentAssessments.map((a) => ({
-        type: 'assessment',
-        companyName: (a.companies as { name: string } | null)?.name || 'Unknown',
-        date: a.updated_at,
-        details: `Score: ${a.total_score}/100, Tier ${a.priority_tier}`,
-      }));
-
-      // Get unique company IDs with assessments
-      const companiesWithAssessments = new Set(assessmentsList.map((a) => a.company_id)).size;
+          return {
+            id: a.company_id || '',
+            companyName: (a.companies as { name: string } | null)?.name || 'Unknown',
+            score: a.total_score || 0,
+            tier: a.priority_tier || 'C',
+            icVolume: a.estimated_ic_volume || 0,
+            keyFinding,
+          };
+        });
 
       setData({
         totalCompanies: totalCompanies || 0,
-        totalFilings: totalFilings || 0,
-        totalAssessments: assessmentsList.length,
-        companiesWithAssessments,
+        totalIcVolume,
+        avgScore,
+        conversionRate,
+        assessments: assessmentsList.map(a => ({
+          total_score: a.total_score,
+          priority_tier: a.priority_tier
+        })),
         tierDistribution: Object.entries(tierCounts).map(([tier, count]) => ({ tier, count })),
-        statusDistribution: Object.entries(statusCounts).map(([status, count]) => ({ status, count })),
-        avgTotalScore,
-        avgFinancingRisk,
-        avgServicesRisk,
-        avgDocumentationRisk,
-        icIndicators,
+        icVolumeByType,
+        pipelineStats,
+        uploadTrends,
         topOpportunities,
-        recentActivity,
       });
     } catch (error) {
       console.error('Error fetching analytics:', error);
@@ -227,20 +246,16 @@ export default function AnalyticsPage() {
   }, [fetchAnalytics]);
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-EU', {
-      style: 'currency',
-      currency: 'EUR',
-      notation: 'compact',
-      maximumFractionDigits: 1,
-    }).format(value);
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
+    if (value >= 1000000000) {
+      return `€${(value / 1000000000).toFixed(1)}B`;
+    }
+    if (value >= 1000000) {
+      return `€${(value / 1000000).toFixed(1)}M`;
+    }
+    if (value >= 1000) {
+      return `€${(value / 1000).toFixed(0)}K`;
+    }
+    return `€${value.toFixed(0)}`;
   };
 
   if (loading) {
@@ -261,9 +276,6 @@ export default function AnalyticsPage() {
       </div>
     );
   }
-
-  const maxTierCount = Math.max(...data.tierDistribution.map((t) => t.count), 1);
-  const maxStatusCount = Math.max(...data.statusDistribution.map((s) => s.count), 1);
 
   return (
     <div className="space-y-8">
@@ -296,455 +308,50 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* Overview Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="border-0 shadow-md hover:shadow-lg transition-all duration-200 rounded-xl bg-gradient-to-br from-[#1e3a5f] to-[#2a4a6f] text-white">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium opacity-90 flex items-center gap-2">
-              <Building2 className="h-4 w-4" />
-              Total Companies
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{data.totalCompanies}</div>
-            <p className="text-sm opacity-75 mt-1">In database</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-md hover:shadow-lg transition-all duration-200 rounded-xl">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500 flex items-center gap-2">
-              <div className="w-6 h-6 rounded-lg bg-blue-100 flex items-center justify-center">
-                <FileText className="h-3.5 w-3.5 text-blue-500" />
-              </div>
-              Total Filings
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-[#1e3a5f]">{data.totalFilings}</div>
-            <p className="text-sm text-slate-500 mt-1">Uploaded</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-md hover:shadow-lg transition-all duration-200 rounded-xl">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500 flex items-center gap-2">
-              <div className="w-6 h-6 rounded-lg bg-emerald-100 flex items-center justify-center">
-                <Target className="h-3.5 w-3.5 text-emerald-500" />
-              </div>
-              Assessments
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-[#1e3a5f]">{data.totalAssessments}</div>
-            <p className="text-sm text-slate-500 mt-1">
-              {data.companiesWithAssessments} companies analyzed
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-md hover:shadow-lg transition-all duration-200 rounded-xl">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500 flex items-center gap-2">
-              <div className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center">
-                <BarChart3 className="h-3.5 w-3.5 text-amber-500" />
-              </div>
-              Avg. Score
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-[#1e3a5f]">
-              {data.avgTotalScore.toFixed(0)}
-              <span className="text-lg text-slate-400">/100</span>
-            </div>
-            <p className="text-sm text-slate-500 mt-1">Overall risk score</p>
-          </CardContent>
-        </Card>
+      {/* Stats Row */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatsCard
+          title="Total Companies"
+          value={data.totalCompanies.toString()}
+          subtitle="In database"
+          icon={Building2}
+          variant="primary"
+        />
+        <StatsCard
+          title="Total IC Volume"
+          value={formatCurrency(data.totalIcVolume)}
+          subtitle="Across all companies"
+          icon={Wallet}
+        />
+        <StatsCard
+          title="Avg. Score"
+          value={`${data.avgScore.toFixed(0)}/100`}
+          subtitle="Overall opportunity score"
+          icon={BarChart3}
+          variant={data.avgScore >= 50 ? 'success' : 'default'}
+        />
+        <StatsCard
+          title="Conversion Rate"
+          value={`${data.conversionRate.toFixed(1)}%`}
+          subtitle="Won / Total assessed"
+          icon={Percent}
+          variant={data.conversionRate >= 20 ? 'success' : data.conversionRate >= 10 ? 'warning' : 'default'}
+        />
       </div>
 
-      {/* Charts Row */}
+      {/* Charts 2x2 Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Priority Tier Distribution */}
-        <Card className="border-0 shadow-lg rounded-xl hover:shadow-xl transition-shadow duration-200">
-          <CardHeader className="border-b border-gray-100">
-            <CardTitle className="text-lg font-semibold text-[#1e3a5f]">
-              Priority Tier Distribution
-            </CardTitle>
-            <CardDescription>Companies by TP opportunity tier</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {data.tierDistribution.map((tier) => (
-                <div key={tier.tier} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Badge
-                        variant="outline"
-                        className={`${
-                          tier.tier === 'A'
-                            ? 'bg-red-100 text-red-700 border-red-200'
-                            : tier.tier === 'B'
-                            ? 'bg-amber-100 text-amber-700 border-amber-200'
-                            : 'bg-emerald-100 text-emerald-700 border-emerald-200'
-                        }`}
-                      >
-                        Tier {tier.tier}
-                      </Badge>
-                      <span className="text-sm text-slate-500">
-                        {tier.tier === 'A' ? 'High Priority' : tier.tier === 'B' ? 'Medium Priority' : 'Lower Priority'}
-                      </span>
-                    </div>
-                    <span className="font-semibold text-[#1e3a5f]">{tier.count}</span>
-                  </div>
-                  <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${
-                        TIER_COLORS[tier.tier as keyof typeof TIER_COLORS] || 'bg-slate-400'
-                      }`}
-                      style={{ width: `${(tier.count / maxTierCount) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-              {data.tierDistribution.length === 0 && (
-                <p className="text-center text-slate-400 py-8">No data available</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Outreach Status */}
-        <Card className="border-0 shadow-lg rounded-xl hover:shadow-xl transition-shadow duration-200">
-          <CardHeader className="border-b border-gray-100">
-            <CardTitle className="text-lg font-semibold text-[#1e3a5f]">
-              Outreach Pipeline
-            </CardTitle>
-            <CardDescription>Status of opportunity outreach</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {data.statusDistribution.map((status) => (
-                <div key={status.status} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-slate-700">
-                      {STATUS_LABELS[status.status] || status.status}
-                    </span>
-                    <span className="font-semibold text-[#1e3a5f]">{status.count}</span>
-                  </div>
-                  <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${
-                        STATUS_COLORS[status.status] || 'bg-slate-400'
-                      }`}
-                      style={{ width: `${(status.count / maxStatusCount) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-              {data.statusDistribution.length === 0 && (
-                <p className="text-center text-slate-400 py-8">No data available</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        <ScoreDistributionChart data={data.assessments} />
+        <PriorityTierChart data={data.assessments} />
+        <ICVolumeChart data={data.icVolumeByType} />
+        <PipelineFunnel data={data.pipelineStats} />
       </div>
 
-      {/* Risk Scores and IC Indicators */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Average Risk Scores */}
-        <Card className="border-0 shadow-lg rounded-xl hover:shadow-xl transition-shadow duration-200">
-          <CardHeader className="border-b border-gray-100">
-            <CardTitle className="text-lg font-semibold text-[#1e3a5f]">
-              Average Risk Scores
-            </CardTitle>
-            <CardDescription>Breakdown by risk category</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Banknote className="h-4 w-4 text-[#1e3a5f]" />
-                    <span className="text-sm font-medium">Financing Risk</span>
-                  </div>
-                  <span className="font-semibold">{data.avgFinancingRisk.toFixed(0)}/100</span>
-                </div>
-                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-[#1e3a5f] rounded-full"
-                    style={{ width: `${data.avgFinancingRisk}%` }}
-                  />
-                </div>
-              </div>
+      {/* Upload Trends */}
+      <UploadTrendsChart data={data.uploadTrends} />
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Scale className="h-4 w-4 text-[#d4a853]" />
-                    <span className="text-sm font-medium">Services Risk</span>
-                  </div>
-                  <span className="font-semibold">{data.avgServicesRisk.toFixed(0)}/100</span>
-                </div>
-                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-[#d4a853] rounded-full"
-                    style={{ width: `${data.avgServicesRisk}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-blue-500" />
-                    <span className="text-sm font-medium">Documentation Risk</span>
-                  </div>
-                  <span className="font-semibold">{data.avgDocumentationRisk.toFixed(0)}/100</span>
-                </div>
-                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-blue-500 rounded-full"
-                    style={{ width: `${data.avgDocumentationRisk}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* IC Transaction Indicators */}
-        <Card className="border-0 shadow-lg rounded-xl hover:shadow-xl transition-shadow duration-200">
-          <CardHeader className="border-b border-gray-100">
-            <CardTitle className="text-lg font-semibold text-[#1e3a5f]">
-              IC Transaction Indicators
-            </CardTitle>
-            <CardDescription>Companies with detected IC transactions</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-7 h-7 rounded-lg bg-[#1e3a5f]/10 flex items-center justify-center">
-                    <Banknote className="h-4 w-4 text-[#1e3a5f]" />
-                  </div>
-                  <span className="text-sm font-medium text-slate-600">IC Financing</span>
-                </div>
-                <p className="text-2xl font-bold text-[#1e3a5f]">
-                  {data.icIndicators.hasIcFinancing}
-                </p>
-              </div>
-
-              <div className="p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-7 h-7 rounded-lg bg-[#d4a853]/20 flex items-center justify-center">
-                    <Scale className="h-4 w-4 text-[#d4a853]" />
-                  </div>
-                  <span className="text-sm font-medium text-slate-600">IC Services</span>
-                </div>
-                <p className="text-2xl font-bold text-[#1e3a5f]">
-                  {data.icIndicators.hasIcServices}
-                </p>
-              </div>
-
-              <div className="p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-7 h-7 rounded-lg bg-purple-100 flex items-center justify-center">
-                    <Percent className="h-4 w-4 text-purple-500" />
-                  </div>
-                  <span className="text-sm font-medium text-slate-600">IC Royalties</span>
-                </div>
-                <p className="text-2xl font-bold text-[#1e3a5f]">
-                  {data.icIndicators.hasIcRoyalties}
-                </p>
-              </div>
-
-              <div className="p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center">
-                    <Globe className="h-4 w-4 text-blue-500" />
-                  </div>
-                  <span className="text-sm font-medium text-slate-600">Cross-Border</span>
-                </div>
-                <p className="text-2xl font-bold text-[#1e3a5f]">
-                  {data.icIndicators.hasCrossBorder}
-                </p>
-              </div>
-
-              <div className="p-4 bg-amber-50 rounded-xl col-span-2 hover:bg-amber-100/70 transition-colors">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-7 h-7 rounded-lg bg-amber-200/50 flex items-center justify-center">
-                    <AlertTriangle className="h-4 w-4 text-amber-600" />
-                  </div>
-                  <span className="text-sm font-medium text-amber-700">Thin Capitalization Indicators</span>
-                </div>
-                <p className="text-2xl font-bold text-amber-700">
-                  {data.icIndicators.hasThinCap}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Top Opportunities and Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Top Opportunities */}
-        <Card className="border-0 shadow-lg rounded-xl hover:shadow-xl transition-shadow duration-200">
-          <CardHeader className="border-b border-gray-100">
-            <CardTitle className="text-lg font-semibold text-[#1e3a5f]">
-              Top Opportunities
-            </CardTitle>
-            <CardDescription>Highest scoring companies</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {data.topOpportunities.map((opp, index) => (
-                <div
-                  key={opp.companyId || index}
-                  className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm ${
-                        TIER_COLORS[opp.priorityTier as keyof typeof TIER_COLORS] || 'bg-slate-400'
-                      }`}
-                    >
-                      {index + 1}
-                    </div>
-                    <div>
-                      <p className="font-medium text-[#1e3a5f]">{opp.companyName}</p>
-                      <p className="text-sm text-slate-500">
-                        IC Volume: {formatCurrency(opp.estimatedIcVolume)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-[#1e3a5f]">{opp.totalScore}/100</p>
-                    <Badge
-                      variant="outline"
-                      className={`${
-                        opp.priorityTier === 'A'
-                          ? 'bg-red-100 text-red-700 border-red-200'
-                          : opp.priorityTier === 'B'
-                          ? 'bg-amber-100 text-amber-700 border-amber-200'
-                          : 'bg-emerald-100 text-emerald-700 border-emerald-200'
-                      }`}
-                    >
-                      Tier {opp.priorityTier}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
-              {data.topOpportunities.length === 0 && (
-                <p className="text-center text-slate-400 py-8">No opportunities yet</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Recent Activity */}
-        <Card className="border-0 shadow-lg rounded-xl hover:shadow-xl transition-shadow duration-200">
-          <CardHeader className="border-b border-gray-100">
-            <CardTitle className="text-lg font-semibold text-[#1e3a5f]">
-              Recent Activity
-            </CardTitle>
-            <CardDescription>Latest assessments and updates</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {data.recentActivity.map((activity, index) => (
-                <div
-                  key={index}
-                  className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg"
-                >
-                  <div className="w-8 h-8 rounded-full bg-[#1e3a5f] flex items-center justify-center">
-                    <Target className="h-4 w-4 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium text-[#1e3a5f]">{activity.companyName}</p>
-                    <p className="text-sm text-slate-500">{activity.details}</p>
-                    <p className="text-xs text-slate-400 mt-1">{formatDate(activity.date)}</p>
-                  </div>
-                  <ArrowUpRight className="h-4 w-4 text-slate-400" />
-                </div>
-              ))}
-              {data.recentActivity.length === 0 && (
-                <p className="text-center text-slate-400 py-8">No recent activity</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Conversion Metrics */}
-      <Card className="border-0 shadow-lg rounded-xl hover:shadow-xl transition-shadow duration-200">
-        <CardHeader className="border-b border-gray-100">
-          <CardTitle className="text-lg font-semibold text-[#1e3a5f]">
-            Pipeline Conversion
-          </CardTitle>
-          <CardDescription>Track your opportunity pipeline performance</CardDescription>
-        </CardHeader>
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div className="text-center p-4 bg-emerald-50 rounded-xl hover:bg-emerald-100/70 transition-colors">
-              <div className="flex items-center justify-center gap-1 mb-2">
-                <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
-                  <TrendingUp className="h-5 w-5 text-emerald-500" />
-                </div>
-              </div>
-              <p className="text-3xl font-bold text-[#1e3a5f]">
-                {data.statusDistribution.find((s) => s.status === 'won')?.count || 0}
-              </p>
-              <p className="text-sm font-medium text-slate-500">Won Deals</p>
-            </div>
-
-            <div className="text-center p-4 bg-red-50 rounded-xl hover:bg-red-100/70 transition-colors">
-              <div className="flex items-center justify-center gap-1 mb-2">
-                <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
-                  <TrendingDown className="h-5 w-5 text-red-500" />
-                </div>
-              </div>
-              <p className="text-3xl font-bold text-[#1e3a5f]">
-                {data.statusDistribution.find((s) => s.status === 'lost')?.count || 0}
-              </p>
-              <p className="text-sm font-medium text-slate-500">Lost</p>
-            </div>
-
-            <div className="text-center p-4 bg-blue-50 rounded-xl hover:bg-blue-100/70 transition-colors">
-              <div className="flex items-center justify-center gap-1 mb-2">
-                <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-                  <Percent className="h-5 w-5 text-blue-500" />
-                </div>
-              </div>
-              <p className="text-3xl font-bold text-[#1e3a5f]">
-                {data.totalAssessments > 0
-                  ? (
-                      ((data.statusDistribution.find((s) => s.status === 'won')?.count || 0) /
-                        data.totalAssessments) *
-                      100
-                    ).toFixed(0)
-                  : 0}
-                %
-              </p>
-              <p className="text-sm font-medium text-slate-500">Win Rate</p>
-            </div>
-
-            <div className="text-center p-4 bg-amber-50 rounded-xl hover:bg-amber-100/70 transition-colors">
-              <div className="flex items-center justify-center gap-1 mb-2">
-                <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
-                  <DollarSign className="h-5 w-5 text-[#d4a853]" />
-                </div>
-              </div>
-              <p className="text-3xl font-bold text-[#1e3a5f]">
-                {formatCurrency(
-                  data.topOpportunities.reduce((sum, o) => sum + o.estimatedIcVolume, 0)
-                )}
-              </p>
-              <p className="text-sm font-medium text-slate-500">Total IC Volume (Top 5)</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Top Opportunities Table */}
+      <TopOpportunitiesTable data={data.topOpportunities} />
     </div>
   );
 }

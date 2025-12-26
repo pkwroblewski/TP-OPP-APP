@@ -73,105 +73,176 @@ export interface ExtractionResult {
   error?: string;
 }
 
-const EXTRACTION_PROMPT = `You are a financial data extraction expert specializing in Luxembourg annual accounts (comptes annuels).
+// System prompt for Luxembourg GAAP annual accounts analysis
+const SYSTEM_PROMPT = `You are a Luxembourg transfer pricing expert analysing annual accounts prepared under Luxembourg GAAP (Law of 19 December 2002).
 
-Analyze the following text extracted from a Luxembourg company's annual accounts PDF and extract all financial data.
+You understand:
+- Luxembourg balance sheet format (Bilan actif/passif)
+- Luxembourg P&L format (Compte de profits et pertes)
+- Luxembourg notes format (Annexe aux comptes annuels)
+- Both French and English terminology
 
-IMPORTANT GUIDELINES:
-1. All monetary values should be in EUR (the standard for Luxembourg accounts)
-2. Look for both French and English terminology
-3. Pay special attention to intercompany (IC) transactions - these are key for transfer pricing analysis
-4. If a value is not found, return null (not 0)
-5. Look for related party disclosures and notes to the accounts
+Key IC line items to find:
+ASSETS:
+- "Créances sur des entreprises liées" / "Amounts owed by affiliated undertakings" (both fixed and current)
+- "Parts dans des entreprises liées" / "Shares in affiliated undertakings"
 
-FRENCH TERMINOLOGY TO LOOK FOR:
-- Bilan (Balance Sheet)
-- Actif immobilisé (Fixed assets)
-- Immobilisations financières (Financial fixed assets)
-- Créances sur entreprises liées (Receivables from affiliated companies)
-- Dettes envers entreprises liées (Payables to affiliated companies)
-- Capitaux propres (Equity)
-- Capital souscrit (Share capital)
-- Résultats reportés (Retained earnings)
-- Chiffre d'affaires (Turnover)
-- Résultat d'exploitation (Operating result)
-- Résultat financier (Financial result)
-- Bénéfice avant impôts (Profit before tax)
-- Impôts sur le résultat (Tax expense)
-- Bénéfice net (Net profit)
-- Produits d'intérêts (Interest income)
-- Charges d'intérêts (Interest expense)
-- Produits de participations (Dividend income)
-- Frais de gestion (Management fees)
-- Redevances (Royalties)
+LIABILITIES:
+- "Dettes envers des entreprises liées" / "Amounts owed to affiliated undertakings"
 
-INTERCOMPANY TRANSACTION TYPES TO IDENTIFY:
-- ic_loan_granted: Loans to affiliated companies
-- ic_loan_received: Loans from affiliated companies
-- management_fee: Management service fees
-- royalty: Royalty payments/receipts
-- guarantee: Financial guarantees
-- cash_pool: Cash pooling arrangements
-- service_fee: General service fees
+P&L:
+- "Intérêts et produits assimilés - dont entreprises liées" / "Interest income from affiliated undertakings"
+- "Intérêts et charges assimilées - dont entreprises liées" / "Interest expense to affiliated undertakings"
+- "Autres charges externes" may contain management fees / "Other external charges"
 
-Return your analysis as a JSON object with this exact structure:
+NOTES - Look specifically for:
+- List of affiliated undertakings with countries
+- Related party transactions disclosure
+- Guarantees (Engagements / Off-balance sheet)
+- Any mention of "contrat de gestion", "management agreement", "cash pooling", "prêt intragroupe"
+
+Respond ONLY with valid JSON.`;
+
+// User prompt template for extraction
+const getUserPrompt = (documentText: string): string => `Analyse this Luxembourg company annual accounts document.
+
+DOCUMENT TEXT:
+${documentText}
+
+EXTRACT AND RETURN THIS EXACT JSON STRUCTURE:
+
 {
-  "financialData": {
-    "totalAssets": <number or null>,
-    "fixedAssets": <number or null>,
-    "financialFixedAssets": <number or null>,
-    "icLoansReceivable": <number or null>,
-    "icReceivablesTrade": <number or null>,
-    "cashAndEquivalents": <number or null>,
-    "totalEquity": <number or null>,
-    "shareCapital": <number or null>,
-    "retainedEarnings": <number or null>,
-    "totalDebt": <number or null>,
-    "icLoansPayable": <number or null>,
-    "icPayablesTrade": <number or null>,
-    "thirdPartyDebt": <number or null>,
-    "turnover": <number or null>,
-    "otherOperatingIncome": <number or null>,
-    "icRevenue": <number or null>,
-    "interestIncomeTotal": <number or null>,
-    "interestIncomeIc": <number or null>,
-    "interestExpenseTotal": <number or null>,
-    "interestExpenseIc": <number or null>,
-    "dividendIncome": <number or null>,
-    "managementFees": <number or null>,
-    "royaltyExpense": <number or null>,
-    "serviceFeesIc": <number or null>,
-    "operatingResult": <number or null>,
-    "financialResult": <number or null>,
-    "profitBeforeTax": <number or null>,
-    "taxExpense": <number or null>,
-    "netProfit": <number or null>
+  "company": {
+    "name": "string or null",
+    "rcs_number": "string or null - format B123456",
+    "legal_form": "SA|SARL|SCS|SCA|SE|SCSp|SNC|other",
+    "address": "string or null",
+    "fiscal_year_end": "YYYY-MM-DD or null",
+    "parent_company": "string or null",
+    "parent_country": "ISO 2-letter code or null",
+    "ultimate_parent": "string or null",
+    "ultimate_parent_country": "ISO 2-letter code or null"
   },
-  "icTransactions": [
+
+  "balance_sheet": {
+    "currency": "EUR",
+    "total_assets": null,
+    "shares_in_affiliated": null,
+    "loans_to_affiliated_fixed": null,
+    "loans_to_affiliated_current": null,
+    "total_ic_receivables": null,
+    "cash": null,
+    "total_equity": null,
+    "share_capital": null,
+    "retained_earnings": null,
+    "profit_loss_year": null,
+    "total_debt": null,
+    "loans_from_affiliated": null,
+    "bank_debt": null,
+    "trade_payables": null
+  },
+
+  "profit_loss": {
+    "currency": "EUR",
+    "turnover": null,
+    "other_operating_income": null,
+    "raw_materials": null,
+    "other_external_charges": null,
+    "staff_costs": null,
+    "depreciation": null,
+    "interest_income_total": null,
+    "interest_income_affiliated": null,
+    "interest_expense_total": null,
+    "interest_expense_affiliated": null,
+    "tax_expense": null,
+    "net_profit_loss": null
+  },
+
+  "ic_transactions": [
     {
-      "transactionType": "<one of: ic_loan_granted, ic_loan_received, management_fee, royalty, guarantee, cash_pool, service_fee>",
-      "transactionCategory": "<one of: financing, services, ip, goods>",
-      "principalAmount": <number or null>,
-      "annualFlow": <number or null>,
-      "counterpartyName": "<string or null>",
-      "counterpartyCountry": "<ISO country code or null>",
-      "impliedInterestRate": <decimal rate or null>,
-      "isCrossBorder": <boolean>,
-      "isHighValue": <boolean - true if amount > 1,000,000 EUR>,
-      "sourceNote": "<which note/section this was found in>"
+      "type": "loan_granted|loan_received|equity|management_fee|royalty|guarantee|cash_pool|service_fee|other",
+      "counterparty": "string or null",
+      "country": "ISO 2-letter code or null",
+      "amount": null,
+      "rate_if_applicable": null,
+      "description": "string"
     }
   ],
-  "metadata": {
-    "detectedLanguage": "<fr or en>",
-    "detectedFiscalYear": <number>,
-    "detectedCompanyName": "<string or null>",
-    "detectedRcsNumber": "<string or null>",
-    "confidence": "<high, medium, or low>"
+
+  "related_parties": [
+    {
+      "name": "string",
+      "country": "ISO 2-letter code or null",
+      "relationship": "parent|subsidiary|sister|shareholder|other",
+      "ownership_pct": null
+    }
+  ],
+
+  "off_balance_sheet": {
+    "guarantees_given": null,
+    "guarantees_received": null,
+    "commitments": "string or null"
+  },
+
+  "tp_indicators": {
+    "has_ic_financing": false,
+    "has_ic_services": false,
+    "has_ic_royalties": false,
+    "has_guarantees": false,
+    "financing_spread_bps": null,
+    "estimated_ic_volume": null,
+    "red_flags": []
+  },
+
+  "extraction_metadata": {
+    "confidence": "high|medium|low",
+    "language_detected": "fr|en|de|mixed",
+    "document_pages": null,
+    "notes": "string"
   }
 }
 
-TEXT TO ANALYZE:
-`;
+IMPORTANT RULES:
+1. Use null for any value you cannot find
+2. All amounts should be numbers (no currency symbols, no thousand separators)
+3. For negative amounts, use negative numbers (not parentheses)
+4. Calculate financing_spread_bps if both IC interest income and expense exist:
+   spread = ((interest_income_affiliated/loans_to_affiliated) - (interest_expense_affiliated/loans_from_affiliated)) * 10000
+5. Set has_ic_financing=true if any IC loans exist
+6. Add to red_flags: "zero_spread" if spread is 0, "thin_cap" if debt/equity > 4:1`;
+
+// Helper function to map transaction types from new format to existing format
+const mapTransactionType = (type: string | undefined): string => {
+  if (!type) return 'other';
+  const typeMap: Record<string, string> = {
+    'loan_granted': 'ic_loan_granted',
+    'loan_received': 'ic_loan_received',
+    'equity': 'equity_investment',
+    'management_fee': 'management_fee',
+    'royalty': 'royalty',
+    'guarantee': 'guarantee',
+    'cash_pool': 'cash_pool',
+    'service_fee': 'service_fee',
+    'other': 'other',
+  };
+  return typeMap[type] || type;
+};
+
+// Helper function to map transaction types to categories
+const mapTransactionCategory = (type: string | undefined): string | null => {
+  if (!type) return null;
+  const categoryMap: Record<string, string> = {
+    'loan_granted': 'financing',
+    'loan_received': 'financing',
+    'equity': 'financing',
+    'guarantee': 'financing',
+    'cash_pool': 'financing',
+    'management_fee': 'services',
+    'service_fee': 'services',
+    'royalty': 'ip',
+  };
+  return categoryMap[type] || null;
+};
 
 export async function extractFinancialDataFromPdf(
   pdfText: string
@@ -206,10 +277,11 @@ export async function extractFinancialDataFromPdf(
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 4096,
+      system: SYSTEM_PROMPT,
       messages: [
         {
           role: 'user',
-          content: EXTRACTION_PROMPT + truncatedText,
+          content: getUserPrompt(truncatedText),
         },
       ],
     });
@@ -240,43 +312,118 @@ export async function extractFinancialDataFromPdf(
 
     const extractedData = JSON.parse(jsonMatch[0]);
 
+    // Map the new JSON structure to the existing ExtractedFinancialData interface
+    const balanceSheet = extractedData.balance_sheet || {};
+    const profitLoss = extractedData.profit_loss || {};
+    const company = extractedData.company || {};
+    const extractionMeta = extractedData.extraction_metadata || {};
+
+    // Build financialData from the new structure
+    const financialData: ExtractedFinancialData = {
+      // Balance Sheet - Assets
+      totalAssets: balanceSheet.total_assets,
+      fixedAssets: null, // Not in new structure
+      financialFixedAssets: balanceSheet.shares_in_affiliated,
+      icLoansReceivable: balanceSheet.total_ic_receivables ||
+        ((balanceSheet.loans_to_affiliated_fixed || 0) + (balanceSheet.loans_to_affiliated_current || 0)) || null,
+      icReceivablesTrade: balanceSheet.loans_to_affiliated_current,
+      cashAndEquivalents: balanceSheet.cash,
+
+      // Balance Sheet - Liabilities
+      totalEquity: balanceSheet.total_equity,
+      shareCapital: balanceSheet.share_capital,
+      retainedEarnings: balanceSheet.retained_earnings,
+      totalDebt: balanceSheet.total_debt,
+      icLoansPayable: balanceSheet.loans_from_affiliated,
+      icPayablesTrade: null, // Not separately tracked in new structure
+      thirdPartyDebt: balanceSheet.bank_debt,
+
+      // Income Statement
+      turnover: profitLoss.turnover,
+      otherOperatingIncome: profitLoss.other_operating_income,
+      icRevenue: null, // Derived from IC transactions
+      interestIncomeTotal: profitLoss.interest_income_total,
+      interestIncomeIc: profitLoss.interest_income_affiliated,
+      interestExpenseTotal: profitLoss.interest_expense_total,
+      interestExpenseIc: profitLoss.interest_expense_affiliated,
+      dividendIncome: null, // Not in new structure
+      managementFees: null, // Extracted from IC transactions
+      royaltyExpense: null, // Extracted from IC transactions
+      serviceFeesIc: null, // Extracted from IC transactions
+      operatingResult: null, // Not in new structure
+      financialResult: null, // Not in new structure
+      profitBeforeTax: null, // Not in new structure
+      taxExpense: profitLoss.tax_expense,
+      netProfit: profitLoss.net_profit_loss,
+
+      // Computed Ratios - will be calculated below
+      debtToEquityRatio: null,
+      icDebtToTotalDebtRatio: null,
+      interestCoverageRatio: null,
+      netInterestMargin: null,
+    };
+
     // Calculate derived ratios
-    const financialData = extractedData.financialData as ExtractedFinancialData;
-    if (financialData) {
-      // Debt to Equity Ratio
-      if (financialData.totalDebt && financialData.totalEquity && financialData.totalEquity !== 0) {
-        financialData.debtToEquityRatio = financialData.totalDebt / financialData.totalEquity;
-      }
+    if (financialData.totalDebt && financialData.totalEquity && financialData.totalEquity !== 0) {
+      financialData.debtToEquityRatio = financialData.totalDebt / financialData.totalEquity;
+    }
 
-      // IC Debt to Total Debt Ratio
-      const icDebt = (financialData.icLoansPayable || 0) + (financialData.icPayablesTrade || 0);
-      if (icDebt && financialData.totalDebt && financialData.totalDebt !== 0) {
-        financialData.icDebtToTotalDebtRatio = icDebt / financialData.totalDebt;
-      }
+    const icDebt = financialData.icLoansPayable || 0;
+    if (icDebt && financialData.totalDebt && financialData.totalDebt !== 0) {
+      financialData.icDebtToTotalDebtRatio = icDebt / financialData.totalDebt;
+    }
 
-      // Interest Coverage Ratio
-      if (financialData.operatingResult && financialData.interestExpenseTotal && financialData.interestExpenseTotal !== 0) {
-        financialData.interestCoverageRatio = financialData.operatingResult / financialData.interestExpenseTotal;
-      }
+    const netInterest = (financialData.interestIncomeTotal || 0) - (financialData.interestExpenseTotal || 0);
+    if (financialData.totalAssets && financialData.totalAssets !== 0) {
+      financialData.netInterestMargin = netInterest / financialData.totalAssets;
+    }
 
-      // Net Interest Margin
-      const netInterest = (financialData.interestIncomeTotal || 0) - (financialData.interestExpenseTotal || 0);
-      if (financialData.totalAssets && financialData.totalAssets !== 0) {
-        financialData.netInterestMargin = netInterest / financialData.totalAssets;
+    // Map IC transactions from new structure
+    const icTransactions: ExtractedICTransaction[] = (extractedData.ic_transactions || []).map(
+      (tx: {
+        type?: string;
+        counterparty?: string;
+        country?: string;
+        amount?: number;
+        rate_if_applicable?: number;
+        description?: string;
+      }) => ({
+        transactionType: mapTransactionType(tx.type),
+        transactionCategory: mapTransactionCategory(tx.type),
+        principalAmount: tx.amount || null,
+        annualFlow: null, // Would need to be derived
+        counterpartyName: tx.counterparty || null,
+        counterpartyCountry: tx.country || null,
+        impliedInterestRate: tx.rate_if_applicable || null,
+        isCrossBorder: tx.country ? tx.country !== 'LU' : false,
+        isHighValue: tx.amount ? tx.amount > 1000000 : false,
+        sourceNote: tx.description || null,
+      })
+    );
+
+    // Extract fiscal year from fiscal_year_end date string
+    const fiscalYearEnd = company.fiscal_year_end;
+    let detectedFiscalYear: number | null = null;
+    if (fiscalYearEnd && typeof fiscalYearEnd === 'string') {
+      const yearMatch = fiscalYearEnd.match(/(\d{4})/);
+      if (yearMatch) {
+        detectedFiscalYear = parseInt(yearMatch[1], 10);
       }
     }
 
     return {
       success: true,
       financialData,
-      icTransactions: extractedData.icTransactions || [],
-      detectedLanguage: extractedData.metadata?.detectedLanguage || null,
-      detectedFiscalYear: extractedData.metadata?.detectedFiscalYear || null,
-      detectedCompanyName: extractedData.metadata?.detectedCompanyName || null,
-      detectedRcsNumber: extractedData.metadata?.detectedRcsNumber || null,
-      confidence: extractedData.metadata?.confidence || 'medium',
+      icTransactions,
+      detectedLanguage: extractionMeta.language_detected || null,
+      detectedFiscalYear,
+      detectedCompanyName: company.name || null,
+      detectedRcsNumber: company.rcs_number || null,
+      confidence: extractionMeta.confidence || 'medium',
       rawText: pdfText,
-    };
+      // Store additional data from new structure for potential future use
+      _rawExtraction: extractedData,
+    } as ExtractionResult;
   } catch (error) {
     console.error('Extraction error:', error);
     // Log more details for debugging

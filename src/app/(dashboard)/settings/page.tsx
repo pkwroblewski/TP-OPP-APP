@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
+import { Slider } from '@/components/ui/slider';
 import {
   Select,
   SelectContent,
@@ -26,43 +27,50 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
 import {
   User,
   Bell,
-  Shield,
-  Palette,
   Database,
-  Key,
   LogOut,
   Trash2,
   Save,
   CheckCircle,
   AlertTriangle,
-  Settings2,
   Mail,
   Building2,
+  Download,
+  Info,
+  ExternalLink,
+  Loader2,
+  Sliders,
 } from 'lucide-react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 interface UserSettings {
-  emailNotifications: boolean;
-  weeklyDigest: boolean;
-  highPriorityAlerts: boolean;
+  displayName: string;
+  companyName: string;
   defaultFiscalYear: string;
   displayCurrency: string;
-  compactView: boolean;
-  darkMode: boolean;
+  tierAThreshold: number;
+  tierBThreshold: number;
+  emailOnComplete: boolean;
+  weeklyDigest: boolean;
 }
 
 const DEFAULT_SETTINGS: UserSettings = {
-  emailNotifications: true,
-  weeklyDigest: false,
-  highPriorityAlerts: true,
+  displayName: '',
+  companyName: '',
   defaultFiscalYear: 'auto',
   displayCurrency: 'EUR',
-  compactView: false,
-  darkMode: false,
+  tierAThreshold: 70,
+  tierBThreshold: 40,
+  emailOnComplete: false,
+  weeklyDigest: false,
 };
+
+const APP_VERSION = '1.0.0';
+const LAST_UPDATED = 'December 2024';
 
 export default function SettingsPage() {
   const [user, setUser] = useState<SupabaseUser | null>(null);
@@ -70,29 +78,32 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
-  const [passwordForm, setPasswordForm] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: '',
-  });
-  const [passwordError, setPasswordError] = useState('');
-  const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [companyCount, setCompanyCount] = useState(0);
 
   const supabase = createClient();
 
   useEffect(() => {
-    const getUser = async () => {
+    const initialize = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
-      setLoading(false);
 
-      // Load settings from localStorage (in production, use database)
+      // Get company count
+      const { count } = await supabase
+        .from('companies')
+        .select('*', { count: 'exact', head: true });
+      setCompanyCount(count || 0);
+
+      // Load settings from localStorage
       const savedSettings = localStorage.getItem('tp-app-settings');
       if (savedSettings) {
         setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(savedSettings) });
       }
+
+      setLoading(false);
     };
-    getUser();
+    initialize();
   }, [supabase]);
 
   const handleSettingChange = <K extends keyof UserSettings>(
@@ -106,7 +117,6 @@ export default function SettingsPage() {
   const saveSettings = async () => {
     setSaving(true);
     try {
-      // Save to localStorage (in production, save to database)
       localStorage.setItem('tp-app-settings', JSON.stringify(settings));
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -117,33 +127,45 @@ export default function SettingsPage() {
     }
   };
 
-  const handlePasswordChange = async () => {
-    setPasswordError('');
-    setPasswordSuccess(false);
-
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      setPasswordError('New passwords do not match');
-      return;
-    }
-
-    if (passwordForm.newPassword.length < 8) {
-      setPasswordError('Password must be at least 8 characters');
-      return;
-    }
-
+  const handleExportData = async () => {
+    setExporting(true);
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: passwordForm.newPassword,
-      });
+      const response = await fetch('/api/export');
+      if (!response.ok) throw new Error('Export failed');
 
-      if (error) throw error;
-
-      setPasswordSuccess(true);
-      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      setTimeout(() => setPasswordSuccess(false), 3000);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tp-data-export-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
     } catch (error) {
-      console.error('Password update failed:', error);
-      setPasswordError('Failed to update password. Please try again.');
+      console.error('Export error:', error);
+      alert('Failed to export data. Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleClearAllData = async () => {
+    setClearing(true);
+    try {
+      // Delete all data in order (respect foreign keys)
+      await supabase.from('tp_assessments').delete().neq('id', '');
+      await supabase.from('financial_data').delete().neq('id', '');
+      await supabase.from('filings').delete().neq('id', '');
+      await supabase.from('companies').delete().neq('id', '');
+
+      setCompanyCount(0);
+      alert('All data has been cleared successfully.');
+    } catch (error) {
+      console.error('Clear data error:', error);
+      alert('Failed to clear data. Please try again.');
+    } finally {
+      setClearing(false);
     }
   };
 
@@ -155,23 +177,23 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1e3a5f]"></div>
+        <Loader2 className="h-8 w-8 animate-spin text-[#1e3a5f]" />
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <div className="max-w-3xl mx-auto space-y-6 pb-12">
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-[#1e3a5f]">Settings</h1>
         <p className="text-slate-500 mt-1">
-          Manage your account settings and preferences
+          Manage your account and application preferences
         </p>
       </div>
 
-      {/* Profile Section */}
-      <Card className="border-0 shadow-lg rounded-xl hover:shadow-xl transition-shadow duration-200">
+      {/* Section 1: Profile */}
+      <Card className="border-0 shadow-lg rounded-xl">
         <CardHeader className="border-b border-gray-100">
           <CardTitle className="text-lg font-semibold text-[#1e3a5f] flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-[#1e3a5f]/10 flex items-center justify-center">
@@ -181,137 +203,59 @@ export default function SettingsPage() {
           </CardTitle>
           <CardDescription>Your account information</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#1e3a5f] to-[#2a4a6f] flex items-center justify-center text-white text-2xl font-bold">
-              {user?.email?.charAt(0).toUpperCase() || 'U'}
-            </div>
-            <div>
-              <p className="font-medium text-[#1e3a5f]">{user?.email}</p>
-              <p className="text-sm text-slate-500">
-                Member since {user?.created_at ? new Date(user.created_at).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) : 'N/A'}
-              </p>
-            </div>
+        <CardContent className="space-y-6 pt-6">
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              value={user?.email || ''}
+              disabled
+              className="bg-gray-50"
+            />
+            <p className="text-xs text-gray-500">Email cannot be changed</p>
           </div>
 
-          <Separator />
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
-              <Input
-                id="email"
-                type="email"
-                value={user?.email || ''}
-                disabled
-                className="bg-slate-50"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="role">Account Type</Label>
-              <Input
-                id="role"
-                value="Administrator"
-                disabled
-                className="bg-slate-50"
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Notification Settings */}
-      <Card className="border-0 shadow-lg rounded-xl hover:shadow-xl transition-shadow duration-200">
-        <CardHeader className="border-b border-gray-100">
-          <CardTitle className="text-lg font-semibold text-[#1e3a5f] flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-              <Bell className="h-4 w-4 text-blue-600" />
-            </div>
-            Notifications
-          </CardTitle>
-          <CardDescription>Configure how you receive updates</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <div className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-slate-500" />
-                <Label htmlFor="email-notifications">Email Notifications</Label>
-              </div>
-              <p className="text-sm text-slate-500">
-                Receive email updates about new opportunities
-              </p>
-            </div>
-            <Switch
-              id="email-notifications"
-              checked={settings.emailNotifications}
-              onCheckedChange={(checked) =>
-                handleSettingChange('emailNotifications', checked)
-              }
+          <div className="space-y-2">
+            <Label htmlFor="displayName">Display Name</Label>
+            <Input
+              id="displayName"
+              value={settings.displayName}
+              onChange={(e) => handleSettingChange('displayName', e.target.value)}
+              placeholder="Enter your name"
             />
           </div>
 
-          <Separator />
-
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label htmlFor="weekly-digest">Weekly Digest</Label>
-              <p className="text-sm text-slate-500">
-                Get a weekly summary of pipeline activity
-              </p>
-            </div>
-            <Switch
-              id="weekly-digest"
-              checked={settings.weeklyDigest}
-              onCheckedChange={(checked) =>
-                handleSettingChange('weeklyDigest', checked)
-              }
-            />
-          </div>
-
-          <Separator />
-
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-amber-500" />
-                <Label htmlFor="high-priority">High Priority Alerts</Label>
-              </div>
-              <p className="text-sm text-slate-500">
-                Immediate alerts for Tier A opportunities
-              </p>
-            </div>
-            <Switch
-              id="high-priority"
-              checked={settings.highPriorityAlerts}
-              onCheckedChange={(checked) =>
-                handleSettingChange('highPriorityAlerts', checked)
-              }
+          <div className="space-y-2">
+            <Label htmlFor="companyName">Company / Firm Name</Label>
+            <Input
+              id="companyName"
+              value={settings.companyName}
+              onChange={(e) => handleSettingChange('companyName', e.target.value)}
+              placeholder="e.g., KPMG Luxembourg"
             />
           </div>
         </CardContent>
       </Card>
 
-      {/* Display Preferences */}
-      <Card className="border-0 shadow-lg rounded-xl hover:shadow-xl transition-shadow duration-200">
+      {/* Section 2: Preferences */}
+      <Card className="border-0 shadow-lg rounded-xl">
         <CardHeader className="border-b border-gray-100">
           <CardTitle className="text-lg font-semibold text-[#1e3a5f] flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
-              <Palette className="h-4 w-4 text-purple-600" />
+              <Sliders className="h-4 w-4 text-purple-600" />
             </div>
-            Display Preferences
+            Preferences
           </CardTitle>
-          <CardDescription>Customize your viewing experience</CardDescription>
+          <CardDescription>Customize application behavior</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-6 pt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label htmlFor="fiscal-year">Default Fiscal Year</Label>
               <Select
                 value={settings.defaultFiscalYear}
-                onValueChange={(value) =>
-                  handleSettingChange('defaultFiscalYear', value)
-                }
+                onValueChange={(value) => handleSettingChange('defaultFiscalYear', value)}
               >
                 <SelectTrigger id="fiscal-year">
                   <SelectValue />
@@ -326,12 +270,10 @@ export default function SettingsPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="currency">Display Currency</Label>
+              <Label htmlFor="currency">Currency Display</Label>
               <Select
                 value={settings.displayCurrency}
-                onValueChange={(value) =>
-                  handleSettingChange('displayCurrency', value)
-                }
+                onValueChange={(value) => handleSettingChange('displayCurrency', value)}
               >
                 <SelectTrigger id="currency">
                   <SelectValue />
@@ -347,111 +289,102 @@ export default function SettingsPage() {
 
           <Separator />
 
+          <div className="space-y-4">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Score Threshold for Tier A</Label>
+                <Badge className="bg-emerald-100 text-emerald-700 font-bold">
+                  {settings.tierAThreshold}+
+                </Badge>
+              </div>
+              <Slider
+                value={[settings.tierAThreshold]}
+                onValueChange={(value) => handleSettingChange('tierAThreshold', value[0])}
+                min={50}
+                max={90}
+                step={5}
+                className="w-full"
+              />
+              <p className="text-xs text-gray-500">
+                Companies with scores at or above this threshold are classified as Tier A (High Priority)
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Score Threshold for Tier B</Label>
+                <Badge className="bg-amber-100 text-amber-700 font-bold">
+                  {settings.tierBThreshold}+
+                </Badge>
+              </div>
+              <Slider
+                value={[settings.tierBThreshold]}
+                onValueChange={(value) => handleSettingChange('tierBThreshold', value[0])}
+                min={20}
+                max={settings.tierAThreshold - 10}
+                step={5}
+                className="w-full"
+              />
+              <p className="text-xs text-gray-500">
+                Companies with scores from {settings.tierBThreshold} to {settings.tierAThreshold - 1} are classified as Tier B (Medium)
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Section 3: Notifications (Future) */}
+      <Card className="border-0 shadow-lg rounded-xl opacity-75">
+        <CardHeader className="border-b border-gray-100">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg font-semibold text-[#1e3a5f] flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                <Bell className="h-4 w-4 text-blue-600" />
+              </div>
+              Notifications
+            </CardTitle>
+            <Badge variant="outline" className="text-gray-500">Coming Soon</Badge>
+          </div>
+          <CardDescription>Email notification preferences</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6 pt-6">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label htmlFor="compact-view">Compact View</Label>
-              <p className="text-sm text-slate-500">
-                Show more items in lists with reduced spacing
+              <div className="flex items-center gap-2">
+                <Mail className="h-4 w-4 text-gray-400" />
+                <Label className="text-gray-500">Email on Extraction Complete</Label>
+              </div>
+              <p className="text-sm text-gray-400">
+                Receive an email when document processing finishes
               </p>
             </div>
             <Switch
-              id="compact-view"
-              checked={settings.compactView}
-              onCheckedChange={(checked) =>
-                handleSettingChange('compactView', checked)
-              }
+              checked={settings.emailOnComplete}
+              onCheckedChange={(checked) => handleSettingChange('emailOnComplete', checked)}
+              disabled
+            />
+          </div>
+
+          <Separator />
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label className="text-gray-500">Weekly Digest</Label>
+              <p className="text-sm text-gray-400">
+                Get a weekly summary of your pipeline activity
+              </p>
+            </div>
+            <Switch
+              checked={settings.weeklyDigest}
+              onCheckedChange={(checked) => handleSettingChange('weeklyDigest', checked)}
+              disabled
             />
           </div>
         </CardContent>
       </Card>
 
-      {/* Security */}
-      <Card className="border-0 shadow-lg rounded-xl hover:shadow-xl transition-shadow duration-200">
-        <CardHeader className="border-b border-gray-100">
-          <CardTitle className="text-lg font-semibold text-[#1e3a5f] flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
-              <Shield className="h-4 w-4 text-emerald-600" />
-            </div>
-            Security
-          </CardTitle>
-          <CardDescription>Manage your password and security settings</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="current-password">Current Password</Label>
-              <Input
-                id="current-password"
-                type="password"
-                value={passwordForm.currentPassword}
-                onChange={(e) =>
-                  setPasswordForm((prev) => ({
-                    ...prev,
-                    currentPassword: e.target.value,
-                  }))
-                }
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="new-password">New Password</Label>
-                <Input
-                  id="new-password"
-                  type="password"
-                  value={passwordForm.newPassword}
-                  onChange={(e) =>
-                    setPasswordForm((prev) => ({
-                      ...prev,
-                      newPassword: e.target.value,
-                    }))
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirm-password">Confirm New Password</Label>
-                <Input
-                  id="confirm-password"
-                  type="password"
-                  value={passwordForm.confirmPassword}
-                  onChange={(e) =>
-                    setPasswordForm((prev) => ({
-                      ...prev,
-                      confirmPassword: e.target.value,
-                    }))
-                  }
-                />
-              </div>
-            </div>
-
-            {passwordError && (
-              <p className="text-sm text-red-600 flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4" />
-                {passwordError}
-              </p>
-            )}
-
-            {passwordSuccess && (
-              <p className="text-sm text-emerald-600 flex items-center gap-2">
-                <CheckCircle className="h-4 w-4" />
-                Password updated successfully
-              </p>
-            )}
-
-            <Button
-              onClick={handlePasswordChange}
-              variant="outline"
-              disabled={!passwordForm.newPassword || !passwordForm.confirmPassword}
-            >
-              <Key className="h-4 w-4 mr-2" />
-              Update Password
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Data Management */}
-      <Card className="border-0 shadow-lg rounded-xl hover:shadow-xl transition-shadow duration-200">
+      {/* Section 4: Data Management */}
+      <Card className="border-0 shadow-lg rounded-xl">
         <CardHeader className="border-b border-gray-100">
           <CardTitle className="text-lg font-semibold text-[#1e3a5f] flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
@@ -459,98 +392,86 @@ export default function SettingsPage() {
             </div>
             Data Management
           </CardTitle>
-          <CardDescription>Manage your data and exports</CardDescription>
+          <CardDescription>Export and manage your data</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6 pt-6">
-          <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors">
+        <CardContent className="space-y-4 pt-6">
+          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-[#1e3a5f]/10 flex items-center justify-center">
-                <Building2 className="h-5 w-5 text-[#1e3a5f]" />
+                <Download className="h-5 w-5 text-[#1e3a5f]" />
               </div>
               <div>
                 <p className="font-medium text-[#1e3a5f]">Export All Data</p>
-                <p className="text-sm text-slate-500">
-                  Download all companies, assessments, and transactions
+                <p className="text-sm text-gray-500">
+                  Download companies, assessments, and financial data as CSV
                 </p>
               </div>
             </div>
-            <Button variant="outline" className="rounded-lg">
-              Export CSV
+            <Button
+              variant="outline"
+              onClick={handleExportData}
+              disabled={exporting}
+            >
+              {exporting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Exporting...
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 mr-2" />
+                  Export CSV
+                </>
+              )}
             </Button>
           </div>
 
-          <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors">
+          <div className="flex items-center justify-between p-4 bg-red-50 rounded-xl border border-red-100">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-[#1e3a5f]/10 flex items-center justify-center">
-                <Settings2 className="h-5 w-5 text-[#1e3a5f]" />
+              <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center">
+                <Trash2 className="h-5 w-5 text-red-600" />
               </div>
               <div>
-                <p className="font-medium text-[#1e3a5f]">API Access</p>
-                <p className="text-sm text-slate-500">
-                  Manage API keys for integrations
+                <p className="font-medium text-red-700">Clear All Companies</p>
+                <p className="text-sm text-red-600/70">
+                  Delete all {companyCount} companies and related data
                 </p>
               </div>
-            </div>
-            <Button variant="outline" disabled className="rounded-lg">
-              Coming Soon
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Danger Zone */}
-      <Card className="border-0 shadow-lg rounded-xl border-l-4 border-l-red-500 bg-red-50/30">
-        <CardHeader className="border-b border-red-100">
-          <CardTitle className="text-lg font-semibold text-red-600 flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center">
-              <AlertTriangle className="h-4 w-4 text-red-600" />
-            </div>
-            Danger Zone
-          </CardTitle>
-          <CardDescription>Irreversible actions</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium">Sign Out</p>
-              <p className="text-sm text-slate-500">
-                Sign out of your account on this device
-              </p>
-            </div>
-            <Button variant="outline" onClick={handleSignOut}>
-              <LogOut className="h-4 w-4 mr-2" />
-              Sign Out
-            </Button>
-          </div>
-
-          <Separator />
-
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium text-red-600">Delete Account</p>
-              <p className="text-sm text-slate-500">
-                Permanently delete your account and all data
-              </p>
             </div>
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive">
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Account
+                <Button variant="destructive" disabled={companyCount === 0 || clearing}>
+                  {clearing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Clearing...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Clear All
+                    </>
+                  )}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                  <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+                    <AlertTriangle className="h-5 w-5" />
+                    Clear All Data?
+                  </AlertDialogTitle>
                   <AlertDialogDescription>
-                    This action cannot be undone. This will permanently delete your
-                    account and remove all your data from our servers.
+                    This will permanently delete all {companyCount} companies, their financial data,
+                    assessments, and uploaded files. This action cannot be undone.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction className="bg-red-600 hover:bg-red-700">
-                    Delete Account
+                  <AlertDialogAction
+                    onClick={handleClearAllData}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    Yes, Clear All Data
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -559,8 +480,71 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Save Button */}
-      <div className="flex items-center justify-end gap-4 pb-8">
+      {/* Section 5: About */}
+      <Card className="border-0 shadow-lg rounded-xl">
+        <CardHeader className="border-b border-gray-100">
+          <CardTitle className="text-lg font-semibold text-[#1e3a5f] flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+              <Info className="h-4 w-4 text-gray-600" />
+            </div>
+            About
+          </CardTitle>
+          <CardDescription>Application information</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4 pt-6">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-4 bg-gray-50 rounded-xl">
+              <p className="text-sm text-gray-500">App Version</p>
+              <p className="font-medium text-[#1e3a5f]">v{APP_VERSION}</p>
+            </div>
+            <div className="p-4 bg-gray-50 rounded-xl">
+              <p className="text-sm text-gray-500">Last Updated</p>
+              <p className="font-medium text-[#1e3a5f]">{LAST_UPDATED}</p>
+            </div>
+          </div>
+
+          <a
+            href="https://docs.example.com/tp-opportunity-finder"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-[#1e3a5f]/10 flex items-center justify-center">
+                <Building2 className="h-5 w-5 text-[#1e3a5f]" />
+              </div>
+              <div>
+                <p className="font-medium text-[#1e3a5f]">Documentation</p>
+                <p className="text-sm text-gray-500">
+                  Learn how to use the TP Opportunity Finder
+                </p>
+              </div>
+            </div>
+            <ExternalLink className="h-4 w-4 text-gray-400 group-hover:text-[#1e3a5f]" />
+          </a>
+        </CardContent>
+      </Card>
+
+      {/* Sign Out Button */}
+      <Card className="border-0 shadow-lg rounded-xl border-l-4 border-l-gray-300">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium text-gray-700">Sign Out</p>
+              <p className="text-sm text-gray-500">
+                Sign out of your account on this device
+              </p>
+            </div>
+            <Button variant="outline" onClick={handleSignOut}>
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign Out
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Save Button - Fixed at bottom */}
+      <div className="sticky bottom-6 flex items-center justify-end gap-4 bg-white/80 backdrop-blur-sm p-4 rounded-xl shadow-lg border">
         {saved && (
           <p className="text-sm text-emerald-600 flex items-center gap-2">
             <CheckCircle className="h-4 w-4" />
@@ -572,8 +556,17 @@ export default function SettingsPage() {
           disabled={saving}
           className="bg-[#1e3a5f] hover:bg-[#2a4a6f]"
         >
-          <Save className="h-4 w-4 mr-2" />
-          {saving ? 'Saving...' : 'Save Settings'}
+          {saving ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save className="h-4 w-4 mr-2" />
+              Save Settings
+            </>
+          )}
         </Button>
       </div>
     </div>

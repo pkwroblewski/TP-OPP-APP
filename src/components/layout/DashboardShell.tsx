@@ -20,17 +20,17 @@ export function DashboardShell({ title, userEmail, children }: DashboardShellPro
   useKeyboardShortcuts();
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa]">
+    <div className="min-h-screen bg-[#f8fafc]">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* Main content area */}
-      <div className="lg:pl-64">
+      <div className="lg:pl-64 min-h-screen flex flex-col">
         <Header
           title={title}
           userEmail={userEmail}
           onMenuClick={() => setSidebarOpen(true)}
         />
-        <main className="p-4 lg:p-6">
+        <main className="flex-1 p-4 lg:p-6 overflow-x-hidden">
           {children}
         </main>
       </div>

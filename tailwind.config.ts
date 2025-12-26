@@ -10,6 +10,19 @@ const config: Config = {
   theme: {
   	extend: {
   		colors: {
+  			// TP Opportunity Finder Theme Colors
+  			tp: {
+  				primary: '#1e3a5f',
+  				'primary-light': '#2a4a7f',
+  				accent: '#d4a853',
+  				'accent-light': '#e4b863',
+  				background: '#f8fafc',
+  				card: '#ffffff',
+  				success: '#10b981',
+  				warning: '#f59e0b',
+  				danger: '#ef4444',
+  			},
+  			// shadcn/ui variables
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
   			card: {
@@ -55,7 +68,25 @@ const config: Config = {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'
-  		}
+  		},
+  		boxShadow: {
+  			'tp': '0 2px 8px -2px rgba(30, 58, 95, 0.1), 0 4px 16px -4px rgba(30, 58, 95, 0.1)',
+  			'tp-lg': '0 4px 12px -2px rgba(30, 58, 95, 0.15), 0 8px 24px -4px rgba(30, 58, 95, 0.15)',
+  		},
+  		animation: {
+  			'fade-in': 'fadeIn 0.2s ease-out',
+  			'slide-in': 'slideIn 0.3s ease-out',
+  		},
+  		keyframes: {
+  			fadeIn: {
+  				'0%': { opacity: '0' },
+  				'100%': { opacity: '1' },
+  			},
+  			slideIn: {
+  				'0%': { transform: 'translateY(-10px)', opacity: '0' },
+  				'100%': { transform: 'translateY(0)', opacity: '1' },
+  			},
+  		},
   	}
   },
   plugins: [require("tailwindcss-animate")],

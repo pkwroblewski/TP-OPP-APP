@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import type { UploadMetadata } from '@/schemas/upload';
+import type { UploadStatus } from '@/components/upload/UploadQueue';
 
 interface UploadResponse {
   success: boolean;
@@ -20,6 +21,7 @@ interface UseFileUploadReturn {
   upload: (file: File, metadata: UploadMetadata) => Promise<UploadResponse>;
   isUploading: boolean;
   progress: number;
+  status: UploadStatus;
   error: string | null;
   reset: () => void;
 }
@@ -27,11 +29,13 @@ interface UseFileUploadReturn {
 export function useFileUpload(): UseFileUploadReturn {
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [status, setStatus] = useState<UploadStatus>('idle');
   const [error, setError] = useState<string | null>(null);
 
   const reset = useCallback(() => {
     setIsUploading(false);
     setProgress(0);
+    setStatus('idle');
     setError(null);
   }, []);
 
@@ -39,6 +43,7 @@ export function useFileUpload(): UseFileUploadReturn {
     async (file: File, metadata: UploadMetadata): Promise<UploadResponse> => {
       setIsUploading(true);
       setProgress(0);
+      setStatus('uploading');
       setError(null);
 
       try {
@@ -46,23 +51,42 @@ export function useFileUpload(): UseFileUploadReturn {
         formData.append('file', file);
         formData.append('metadata', JSON.stringify(metadata));
 
-        // Simulate progress for better UX (actual progress tracking would require XHR)
-        const progressInterval = setInterval(() => {
+        // Simulate upload progress (0-30%)
+        const uploadInterval = setInterval(() => {
           setProgress((prev) => {
-            if (prev >= 90) {
-              clearInterval(progressInterval);
+            if (prev >= 30) {
+              clearInterval(uploadInterval);
               return prev;
             }
-            return prev + 10;
+            return prev + 5;
           });
-        }, 200);
+        }, 150);
 
         const response = await fetch('/api/upload', {
           method: 'POST',
           body: formData,
         });
 
-        clearInterval(progressInterval);
+        clearInterval(uploadInterval);
+
+        // Processing phase (30-60%)
+        setProgress(30);
+        setStatus('processing');
+
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        setProgress(45);
+
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        setProgress(60);
+
+        // Analyzing phase (60-90%)
+        setStatus('analyzing');
+
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        setProgress(75);
+
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        setProgress(90);
 
         const result: UploadResponse = await response.json();
 
@@ -70,15 +94,20 @@ export function useFileUpload(): UseFileUploadReturn {
           const errorMessage = result.error || 'Upload failed';
           setError(errorMessage);
           setProgress(0);
+          setStatus('error');
           return { success: false, error: errorMessage };
         }
 
+        // Complete (100%)
         setProgress(100);
+        setStatus('complete');
+
         return result;
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
         setError(errorMessage);
         setProgress(0);
+        setStatus('error');
         return { success: false, error: errorMessage };
       } finally {
         setIsUploading(false);
@@ -91,6 +120,7 @@ export function useFileUpload(): UseFileUploadReturn {
     upload,
     isUploading,
     progress,
+    status,
     error,
     reset,
   };

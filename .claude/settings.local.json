@@ -20,7 +20,27 @@
       "Bash(npx shadcn@latest add:*)",
       "Bash(del \"c:\\\\Users\\\\bitpk\\\\Desktop\\\\TP Opp App\\\\src\\\\app\\\\page.tsx\")",
       "Bash(git init:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nInitial commit: TP Opportunity Finder application\n\nComplete Next.js 14 application for Luxembourg transfer pricing opportunity detection.\n\nFeatures:\n- Supabase authentication \\(login/signup\\)\n- PDF upload with drag-and-drop\n- AI-powered financial data extraction using Claude\n- Transfer pricing analysis and scoring\n- Company management with detailed views\n- Opportunities pipeline \\(Kanban and list views\\)\n- Analytics dashboard\n- Settings management\n- Polished UI with consistent design system\n\nTech stack:\n- Next.js 14 with App Router\n- TypeScript\n- Tailwind CSS with shadcn/ui components\n- Supabase \\(auth, database, storage\\)\n- Anthropic Claude API for AI extraction\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git remote add:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "Bash(tasklist:*)",
+      "Bash(timeout:*)",
+      "Bash(node:*)",
+      "Bash(npm ls:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(npm view:*)",
+      "Bash(git commit:*)",
+      "Skill(vercel:deploy)",
+      "Skill(vercel:deploy:*)",
+      "Bash(vercel --version:*)",
+      "Bash(vercel whoami:*)",
+      "Bash(vercel:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx next build:*)",
+      "Bash(del \"c:\\\\Users\\\\bitpk\\\\Desktop\\\\TP Opp App\\\\src\\\\app\\\\test-layout\\\\page.tsx\")",
+      "Bash(npx shadcn@latest add slider:*)"
     ]
   }
 }
