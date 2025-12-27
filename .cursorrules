@@ -1,0 +1,9 @@
+# TP Opportunity Finder – Cursor rules
+- Always propose code edits as a unified diff unless I ask for inline.
+- Only touch these paths unless I say otherwise:
+  src/app/api/**, worker/**, supabase/migrations/**, scripts/**, render.yaml
+- Do not edit unrelated files. No refactors beyond scope.
+- Never commit secrets. Use env vars.
+- Prefer deterministic tools & pinned versions. No LLMs in core extraction.
+- After applying changes, stage, commit, and push with the message provided.
+

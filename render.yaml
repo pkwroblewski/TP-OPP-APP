@@ -1,0 +1,17 @@
+services:
+- type: worker
+  name: tp-worker
+  env: docker
+  rootDir: worker
+  dockerfilePath: worker/Dockerfile
+  autoDeploy: true
+  envVars:
+  - key: SUPABASE_DB_URL
+    sync: false
+  - key: SUPABASE_SERVICE_ROLE_KEY
+    sync: false
+  - key: SUPABASE_PROJECT_URL
+    sync: false
+  - key: SUPABASE_BUCKET
+    value: filings
+
