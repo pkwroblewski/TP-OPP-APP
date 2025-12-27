@@ -1,6 +1,7 @@
 /**
  * Database types for Supabase
- * These types match the schema defined in supabase/migrations/001_initial_schema.sql
+ * These types match the schema defined in supabase/migrations/
+ * Updated for redesign with audit trail, opportunity status, and enhanced fields
  */
 
 export type Json =
@@ -54,6 +55,13 @@ export type Database = {
           ultimate_parent_country: string | null;
           is_part_of_group: boolean;
           last_filing_date: string | null;
+          // New fields from redesign
+          principal_activity: string | null;
+          industry_sector: string | null;
+          number_of_employees: number | null;
+          is_financial_intermediary: boolean;
+          auditor: string | null;
+          management_company: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -71,6 +79,12 @@ export type Database = {
           ultimate_parent_country?: string | null;
           is_part_of_group?: boolean;
           last_filing_date?: string | null;
+          principal_activity?: string | null;
+          industry_sector?: string | null;
+          number_of_employees?: number | null;
+          is_financial_intermediary?: boolean;
+          auditor?: string | null;
+          management_company?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -88,6 +102,12 @@ export type Database = {
           ultimate_parent_country?: string | null;
           is_part_of_group?: boolean;
           last_filing_date?: string | null;
+          principal_activity?: string | null;
+          industry_sector?: string | null;
+          number_of_employees?: number | null;
+          is_financial_intermediary?: boolean;
+          auditor?: string | null;
+          management_company?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -225,6 +245,11 @@ export type Database = {
           pdf_stored_path: string | null;
           extraction_status: string;
           extracted_text: string | null;
+          // New fields from redesign
+          enhanced_extraction: Json | null;
+          extraction_confidence: string | null;
+          document_quality: string | null;
+          related_party_notes: string | null;
           created_at: string;
         };
         Insert: {
@@ -237,6 +262,10 @@ export type Database = {
           pdf_stored_path?: string | null;
           extraction_status?: string;
           extracted_text?: string | null;
+          enhanced_extraction?: Json | null;
+          extraction_confidence?: string | null;
+          document_quality?: string | null;
+          related_party_notes?: string | null;
           created_at?: string;
         };
         Update: {
@@ -249,6 +278,10 @@ export type Database = {
           pdf_stored_path?: string | null;
           extraction_status?: string;
           extracted_text?: string | null;
+          enhanced_extraction?: Json | null;
+          extraction_confidence?: string | null;
+          document_quality?: string | null;
+          related_party_notes?: string | null;
           created_at?: string;
         };
         Relationships: [
@@ -300,6 +333,16 @@ export type Database = {
           ic_debt_to_total_debt_ratio: number | null;
           interest_coverage_ratio: number | null;
           net_interest_margin: number | null;
+          // New fields from redesign
+          net_ic_position: number | null;
+          net_interest_margin_eur: number | null;
+          net_interest_margin_pct: number | null;
+          spread_bps: number | null;
+          spread_vs_benchmark: string | null;
+          average_lending_rate: number | null;
+          average_borrowing_rate: number | null;
+          is_zero_spread: boolean;
+          is_low_spread: boolean;
           created_at: string;
         };
         Insert: {
@@ -340,6 +383,15 @@ export type Database = {
           ic_debt_to_total_debt_ratio?: number | null;
           interest_coverage_ratio?: number | null;
           net_interest_margin?: number | null;
+          net_ic_position?: number | null;
+          net_interest_margin_eur?: number | null;
+          net_interest_margin_pct?: number | null;
+          spread_bps?: number | null;
+          spread_vs_benchmark?: string | null;
+          average_lending_rate?: number | null;
+          average_borrowing_rate?: number | null;
+          is_zero_spread?: boolean;
+          is_low_spread?: boolean;
           created_at?: string;
         };
         Update: {
@@ -380,6 +432,15 @@ export type Database = {
           ic_debt_to_total_debt_ratio?: number | null;
           interest_coverage_ratio?: number | null;
           net_interest_margin?: number | null;
+          net_ic_position?: number | null;
+          net_interest_margin_eur?: number | null;
+          net_interest_margin_pct?: number | null;
+          spread_bps?: number | null;
+          spread_vs_benchmark?: string | null;
+          average_lending_rate?: number | null;
+          average_borrowing_rate?: number | null;
+          is_zero_spread?: boolean;
+          is_low_spread?: boolean;
           created_at?: string;
         };
         Relationships: [
@@ -511,6 +572,18 @@ export type Database = {
           outreach_status: string;
           outreach_notes: string | null;
           assigned_to: string | null;
+          // New fields from redesign - traffic lights
+          ic_risk_level: RiskLevel | null;
+          ic_risk_reasons: string[] | null;
+          tp_risk_level: RiskLevel | null;
+          tp_risk_reasons: string[] | null;
+          doc_risk_level: RiskLevel | null;
+          doc_risk_reasons: string[] | null;
+          spread_vs_market: string | null;
+          engagement_estimate_low: number | null;
+          engagement_estimate_high: number | null;
+          outreach_angle: string | null;
+          recommended_services: string[] | null;
           created_at: string;
           updated_at: string;
         };
@@ -541,6 +614,17 @@ export type Database = {
           outreach_status?: string;
           outreach_notes?: string | null;
           assigned_to?: string | null;
+          ic_risk_level?: RiskLevel | null;
+          ic_risk_reasons?: string[] | null;
+          tp_risk_level?: RiskLevel | null;
+          tp_risk_reasons?: string[] | null;
+          doc_risk_level?: RiskLevel | null;
+          doc_risk_reasons?: string[] | null;
+          spread_vs_market?: string | null;
+          engagement_estimate_low?: number | null;
+          engagement_estimate_high?: number | null;
+          outreach_angle?: string | null;
+          recommended_services?: string[] | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -571,6 +655,17 @@ export type Database = {
           outreach_status?: string;
           outreach_notes?: string | null;
           assigned_to?: string | null;
+          ic_risk_level?: RiskLevel | null;
+          ic_risk_reasons?: string[] | null;
+          tp_risk_level?: RiskLevel | null;
+          tp_risk_reasons?: string[] | null;
+          doc_risk_level?: RiskLevel | null;
+          doc_risk_reasons?: string[] | null;
+          spread_vs_market?: string | null;
+          engagement_estimate_low?: number | null;
+          engagement_estimate_high?: number | null;
+          outreach_angle?: string | null;
+          recommended_services?: string[] | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -623,6 +718,133 @@ export type Database = {
         };
         Relationships: [];
       };
+      // New table from redesign
+      audit_trail: {
+        Row: {
+          id: string;
+          company_id: string | null;
+          action_type: AuditActionType;
+          action_details: Json | null;
+          notes: string | null;
+          performed_by: string | null;
+          performed_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id?: string | null;
+          action_type: AuditActionType;
+          action_details?: Json | null;
+          notes?: string | null;
+          performed_by?: string | null;
+          performed_at?: string;
+        };
+        Update: {
+          id?: string;
+          company_id?: string | null;
+          action_type?: AuditActionType;
+          action_details?: Json | null;
+          notes?: string | null;
+          performed_by?: string | null;
+          performed_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "audit_trail_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: false;
+            referencedRelation: "companies";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      // New table from redesign
+      opportunity_status: {
+        Row: {
+          id: string;
+          company_id: string;
+          status: OpportunityStatusType;
+          priority: OpportunityPriority;
+          estimated_value_low: number | null;
+          estimated_value_high: number | null;
+          next_action: string | null;
+          next_action_date: string | null;
+          assigned_to: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          status?: OpportunityStatusType;
+          priority?: OpportunityPriority;
+          estimated_value_low?: number | null;
+          estimated_value_high?: number | null;
+          next_action?: string | null;
+          next_action_date?: string | null;
+          assigned_to?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          company_id?: string;
+          status?: OpportunityStatusType;
+          priority?: OpportunityPriority;
+          estimated_value_low?: number | null;
+          estimated_value_high?: number | null;
+          next_action?: string | null;
+          next_action_date?: string | null;
+          assigned_to?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "opportunity_status_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: true;
+            referencedRelation: "companies";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      // New table from redesign
+      market_benchmarks: {
+        Row: {
+          id: string;
+          benchmark_type: MarketBenchmarkType;
+          low_value: number | null;
+          high_value: number | null;
+          unit: BenchmarkUnit | null;
+          description: string | null;
+          source: string | null;
+          effective_date: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          benchmark_type: MarketBenchmarkType;
+          low_value?: number | null;
+          high_value?: number | null;
+          unit?: BenchmarkUnit | null;
+          description?: string | null;
+          source?: string | null;
+          effective_date?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          benchmark_type?: MarketBenchmarkType;
+          low_value?: number | null;
+          high_value?: number | null;
+          unit?: BenchmarkUnit | null;
+          description?: string | null;
+          source?: string | null;
+          effective_date?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -639,33 +861,52 @@ export type Database = {
   };
 };
 
-// Convenience type aliases
-export type Company = Database['public']['Tables']['companies']['Row'];
-export type CompanyInsert = Database['public']['Tables']['companies']['Insert'];
-export type CompanyUpdate = Database['public']['Tables']['companies']['Update'];
+// ============================================
+// Type Literals
+// ============================================
 
-export type UploadBatch = Database['public']['Tables']['upload_batches']['Row'];
-export type UploadBatchInsert = Database['public']['Tables']['upload_batches']['Insert'];
+// Traffic light risk levels
+export type RiskLevel = 'RED' | 'AMBER' | 'GREEN';
 
-export type UploadedFile = Database['public']['Tables']['uploaded_files']['Row'];
-export type UploadedFileInsert = Database['public']['Tables']['uploaded_files']['Insert'];
+// Audit action types
+export type AuditActionType =
+  | 'created'
+  | 'viewed'
+  | 'contacted'
+  | 'meeting'
+  | 'proposal'
+  | 'won'
+  | 'lost'
+  | 'note_added'
+  | 'status_changed'
+  | 'analyzed'
+  | 'exported';
 
-export type Filing = Database['public']['Tables']['filings']['Row'];
-export type FilingInsert = Database['public']['Tables']['filings']['Insert'];
+// Opportunity status types
+export type OpportunityStatusType =
+  | 'new'
+  | 'contacted'
+  | 'meeting'
+  | 'proposal'
+  | 'won'
+  | 'lost'
+  | 'on_hold';
 
-export type FinancialData = Database['public']['Tables']['financial_data']['Row'];
-export type FinancialDataInsert = Database['public']['Tables']['financial_data']['Insert'];
+// Opportunity priority
+export type OpportunityPriority = 'high' | 'medium' | 'low';
 
-export type ICTransaction = Database['public']['Tables']['ic_transactions']['Row'];
-export type ICTransactionInsert = Database['public']['Tables']['ic_transactions']['Insert'];
+// Market benchmark types
+export type MarketBenchmarkType =
+  | 'treasury_spread'
+  | 'guarantee_fee'
+  | 'management_fee_admin'
+  | 'royalty_rate'
+  | 'service_fee_markup';
 
-export type TPAssessment = Database['public']['Tables']['tp_assessments']['Row'];
-export type TPAssessmentInsert = Database['public']['Tables']['tp_assessments']['Insert'];
+// Benchmark units
+export type BenchmarkUnit = 'bps' | 'percent' | 'eur';
 
-export type TPBenchmark = Database['public']['Tables']['tp_benchmarks']['Row'];
-export type TPBenchmarkInsert = Database['public']['Tables']['tp_benchmarks']['Insert'];
-
-// Transaction type literals
+// Transaction types
 export type TransactionType =
   | 'ic_loan_granted'
   | 'ic_loan_received'
@@ -690,6 +931,51 @@ export type OutreachStatus =
 
 export type ExtractionStatus = 'pending' | 'extracting' | 'completed' | 'failed';
 
+// ============================================
+// Convenience type aliases
+// ============================================
+
+export type Company = Database['public']['Tables']['companies']['Row'];
+export type CompanyInsert = Database['public']['Tables']['companies']['Insert'];
+export type CompanyUpdate = Database['public']['Tables']['companies']['Update'];
+
+export type UploadBatch = Database['public']['Tables']['upload_batches']['Row'];
+export type UploadBatchInsert = Database['public']['Tables']['upload_batches']['Insert'];
+
+export type UploadedFile = Database['public']['Tables']['uploaded_files']['Row'];
+export type UploadedFileInsert = Database['public']['Tables']['uploaded_files']['Insert'];
+
+export type Filing = Database['public']['Tables']['filings']['Row'];
+export type FilingInsert = Database['public']['Tables']['filings']['Insert'];
+
+export type FinancialData = Database['public']['Tables']['financial_data']['Row'];
+export type FinancialDataInsert = Database['public']['Tables']['financial_data']['Insert'];
+
+export type ICTransaction = Database['public']['Tables']['ic_transactions']['Row'];
+export type ICTransactionInsert = Database['public']['Tables']['ic_transactions']['Insert'];
+
+export type TPAssessment = Database['public']['Tables']['tp_assessments']['Row'];
+export type TPAssessmentInsert = Database['public']['Tables']['tp_assessments']['Insert'];
+export type TPAssessmentUpdate = Database['public']['Tables']['tp_assessments']['Update'];
+
+export type TPBenchmark = Database['public']['Tables']['tp_benchmarks']['Row'];
+export type TPBenchmarkInsert = Database['public']['Tables']['tp_benchmarks']['Insert'];
+
+// New types from redesign
+export type AuditTrail = Database['public']['Tables']['audit_trail']['Row'];
+export type AuditTrailInsert = Database['public']['Tables']['audit_trail']['Insert'];
+
+export type OpportunityStatus = Database['public']['Tables']['opportunity_status']['Row'];
+export type OpportunityStatusInsert = Database['public']['Tables']['opportunity_status']['Insert'];
+export type OpportunityStatusUpdate = Database['public']['Tables']['opportunity_status']['Update'];
+
+export type MarketBenchmark = Database['public']['Tables']['market_benchmarks']['Row'];
+export type MarketBenchmarkInsert = Database['public']['Tables']['market_benchmarks']['Insert'];
+
+// ============================================
+// Helper types
+// ============================================
+
 // Helper type for Supabase Tables utility
 type PublicSchema = Database['public'];
 
@@ -704,3 +990,52 @@ export type TablesInsert<
 export type TablesUpdate<
   TableName extends keyof PublicSchema['Tables']
 > = PublicSchema['Tables'][TableName]['Update'];
+
+// Company with related data (for queries with joins)
+export interface CompanyWithAssessment extends Company {
+  tp_assessments?: TPAssessment[];
+  financial_data?: FinancialData[];
+  opportunity_status?: OpportunityStatus | null;
+}
+
+// Audit trail entry with formatted data
+export interface AuditTrailEntry extends AuditTrail {
+  performed_by_email?: string;
+}
+
+// ============================================
+// Extraction Validation Types
+// ============================================
+
+// Validation warning from 3-layer extraction
+export interface ExtractionValidationWarning {
+  field: string;
+  severity: 'HIGH' | 'MEDIUM' | 'LOW';
+  issue: string;
+  details: string;
+}
+
+// TP Opportunity flag from validation
+export interface ExtractionTPFlag {
+  type: string;
+  priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  description: string;
+  estimatedValue: string;
+  reference?: string;
+}
+
+// Extraction quality metrics
+export interface ExtractionQualityMetrics {
+  confidence: 'HIGH' | 'MEDIUM' | 'LOW';
+  allSourced: boolean;
+  crossValidated?: boolean;
+  notesCovered?: number;
+}
+
+// Validation result from 3-layer extraction
+export interface ExtractionValidationResult {
+  warnings: ExtractionValidationWarning[];
+  flags: ExtractionTPFlag[];
+  errors: Array<{ field: string; message: string }>;
+  qualityMetrics: ExtractionQualityMetrics;
+}

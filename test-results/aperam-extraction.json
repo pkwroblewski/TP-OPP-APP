@@ -1,0 +1,257 @@
+{
+  "companyInfo": {
+    "name": null,
+    "rcsNumber": null,
+    "totalAssets": null,
+    "fiscalYearEnd": null,
+    "currency": "EUR"
+  },
+  "balanceSheet": {
+    "sharesInAffiliatedUndertakings": {
+      "amount": 4013642720,
+      "source": "Line containing \"Shares in affiliated undertakings\"",
+      "pageNumber": 1,
+      "lineReference": "1. Shares in affiliated undertakings    1137            4,013,642,720   5,814,154,635",
+      "noteReference": null,
+      "confidence": "medium",
+      "matchedPattern": "Shares in affiliated undertakings",
+      "warning": null
+    },
+    "icLoansProvidedLongTerm": {
+      "amount": 517445444,
+      "source": "Line containing \"Loans to affiliated undertakings\"",
+      "pageNumber": 1,
+      "lineReference": "2. Loans to affiliated undertakings     1139            517,445,444     176,742,458",
+      "noteReference": null,
+      "confidence": "medium",
+      "matchedPattern": "Loans to affiliated undertakings",
+      "warning": null
+    },
+    "icLoansProvidedShortTerm": {
+      "amount": 881583088,
+      "source": "Line containing \"Amounts owed by affiliated undertakings\"",
+      "pageNumber": 1,
+      "lineReference": "Amounts owed by affiliated undertakings becoming due within one year: EUR 881,583,088",
+      "noteReference": null,
+      "confidence": "high",
+      "matchedPattern": "Amounts owed by affiliated undertakings",
+      "warning": null
+    },
+    "icLoansReceivedLongTerm": {
+      "amount": null,
+      "source": null,
+      "pageNumber": null,
+      "lineReference": null,
+      "noteReference": null,
+      "confidence": "low",
+      "matchedPattern": null,
+      "warning": "Pattern not found: Long-term IC loans received (maturity > 1 year)"
+    },
+    "icLoansReceivedShortTerm": {
+      "amount": 310947118,
+      "source": "Line containing \"Amounts owed to affiliated undertakings\"",
+      "pageNumber": 1,
+      "lineReference": "6. Amounts owed to affiliated undertakings            310,947,118     24,104,553",
+      "noteReference": null,
+      "confidence": "high",
+      "matchedPattern": "Amounts owed to affiliated undertakings",
+      "warning": null
+    },
+    "totalAssets": {
+      "amount": 5440566091,
+      "source": "Line containing \"Total assets\"",
+      "pageNumber": 1,
+      "lineReference": "TOTAL ASSETS                                           5,440,566,091   6,272,863,347",
+      "noteReference": null,
+      "confidence": "medium",
+      "matchedPattern": "Total assets",
+      "warning": null
+    },
+    "totalEquity": {
+      "amount": null,
+      "source": null,
+      "pageNumber": null,
+      "lineReference": null,
+      "noteReference": null,
+      "confidence": "low",
+      "matchedPattern": null,
+      "warning": "Pattern not found: Total equity for thin cap analysis"
+    }
+  },
+  "profitAndLoss": {
+    "item4TotalAmount": {
+      "amount": 91335336,
+      "source": "Line containing \"Other operating income\"",
+      "pageNumber": 1,
+      "lineReference": "4. Other operating income              1713   Note 15  91,335,336      89,657,653",
+      "noteReference": "Note undefined",
+      "confidence": "medium",
+      "matchedPattern": "Other operating income",
+      "warning": null
+    },
+    "item4NoteReference": "Note undefined",
+    "item9aDividendsFromAffiliates": {
+      "amount": 24218665,
+      "source": "P&L - Financial Income - derived from affiliated undertakings",
+      "pageNumber": 1,
+      "lineReference": "a) derived from affiliated undertakings    1717     24,218,665      71,274,921",
+      "noteReference": null,
+      "confidence": "high",
+      "matchedPattern": "derived from affiliated undertakings",
+      "warning": null
+    },
+    "item10TotalInterest": {
+      "amount": 36563878,
+      "source": "Line containing \"Income from other investments and loans forming part\"",
+      "pageNumber": 1,
+      "lineReference": "10. Income from other investments and loans forming part     of the fixed assets                1721            36,563,878      19,153,390",
+      "noteReference": null,
+      "confidence": "medium",
+      "matchedPattern": "Income from other investments and loans forming part",
+      "warning": null
+    },
+    "item10aInterestFromAffiliates": {
+      "amount": 36563878,
+      "source": "P&L - Financial Income - derived from affiliated undertakings",
+      "pageNumber": 1,
+      "lineReference": "a) derived from affiliated undertakings    1723    36,563,878      19,153,390",
+      "noteReference": null,
+      "confidence": "high",
+      "matchedPattern": "derived from affiliated undertakings",
+      "warning": null
+    },
+    "item11TotalInterest": {
+      "amount": 32673249,
+      "source": "Line containing \"Other interest receivable and similar income\"",
+      "pageNumber": 1,
+      "lineReference": "11. Other interest receivable and similar income                                        1727   Note 18  32,673,249      16,765,801",
+      "noteReference": "Note undefined",
+      "confidence": "medium",
+      "matchedPattern": "Other interest receivable and similar income",
+      "warning": null
+    },
+    "item11aInterestFromAffiliates": {
+      "amount": 31282881,
+      "source": "P&L - Financial Income - derived from affiliated undertakings",
+      "pageNumber": 1,
+      "lineReference": "a) derived from affiliated undertakings    1729    31,282,881      16,403,041",
+      "noteReference": null,
+      "confidence": "high",
+      "matchedPattern": "derived from affiliated undertakings",
+      "warning": null
+    },
+    "item14TotalInterest": {
+      "amount": 402079610,
+      "source": "Line containing \"Interest payable and similar expenses\"",
+      "pageNumber": 1,
+      "lineReference": "14. Interest payable and similar expenses                                        1627   Note 18  -402,079,610    -19,933,493",
+      "noteReference": "Note undefined",
+      "confidence": "medium",
+      "matchedPattern": "Interest payable and similar expenses",
+      "warning": null
+    },
+    "item14aInterestToAffiliates": {
+      "amount": 378670364,
+      "source": "P&L - Financial Expenses - concerning affiliated undertakings",
+      "pageNumber": 1,
+      "lineReference": "a) concerning affiliated undertakings     1629     -378,670,364    -1,697,299",
+      "noteReference": null,
+      "confidence": "high",
+      "matchedPattern": "concerning affiliated undertakings",
+      "warning": null
+    },
+    "netTurnover": {
+      "amount": null,
+      "source": null,
+      "pageNumber": null,
+      "lineReference": null,
+      "noteReference": null,
+      "confidence": "low",
+      "matchedPattern": null,
+      "warning": "Pattern not found: Total revenue"
+    },
+    "netProfitLoss": {
+      "amount": null,
+      "source": null,
+      "pageNumber": null,
+      "lineReference": null,
+      "noteReference": null,
+      "confidence": "low",
+      "matchedPattern": null,
+      "warning": "Pattern not found: Net profit/loss for the year"
+    }
+  },
+  "notes": [
+    [
+      "Note undefined",
+      {
+        "noteNumber": "Note undefined",
+        "noteAccessible": false,
+        "noteContent": null,
+        "icBreakdown": null,
+        "parsingWarnings": [
+          "Invalid note reference format: Note undefined"
+        ],
+        "pageNumber": null
+      }
+    ]
+  ],
+  "validation": {
+    "isValid": true,
+    "errors": [],
+    "warnings": [
+      {
+        "severity": "MEDIUM",
+        "field": "item4OtherOperatingIncome",
+        "issue": "Cannot verify if IC services",
+        "details": "P&L Item 4 shows EUR 91.3M but Note undefined not accessible - cannot confirm IC nature"
+      },
+      {
+        "severity": "LOW",
+        "field": "noteCoverage",
+        "issue": "Referenced note not accessible",
+        "details": "Note undefined is referenced but not found/readable in document"
+      }
+    ],
+    "flags": [
+      {
+        "type": "HIGH_RATE",
+        "priority": "HIGH",
+        "description": "Implied IC borrowing rate 121.78% is extremely high",
+        "estimatedValue": "EUR 366.2M potential interest deduction at risk",
+        "reference": "Luxembourg Circular LIR n° 56/1"
+      }
+    ],
+    "crossValidation": {
+      "loansVsInterest": {
+        "loansProvidedTotal": 1399028532,
+        "interestIncomeTotal": 67846759,
+        "impliedLendingRate": 4.849562210358123,
+        "loansReceivedTotal": 310947118,
+        "interestExpenseTotal": 378670364,
+        "impliedBorrowingRate": 121.77966672776816,
+        "spreadBps": -11693.010451741004,
+        "issues": []
+      },
+      "reasonablenessChecks": {
+        "icLoansVsTotalAssets": 31.43010527578572,
+        "interestVsTurnover": null,
+        "debtToEquityRatio": 0.06991719408816298,
+        "issues": []
+      }
+    },
+    "qualityMetrics": {
+      "allSourced": true,
+      "sourcedPercentage": 100,
+      "valuesExtracted": 8,
+      "valuesWithSources": 8,
+      "notesCoverage": {
+        "referenced": 1,
+        "accessible": 0,
+        "withICBreakdown": 0
+      },
+      "crossValidated": true,
+      "confidence": "HIGH"
+    }
+  }
+}

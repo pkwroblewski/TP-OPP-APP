@@ -20,11 +20,11 @@ export function DashboardShell({ title, userEmail, children }: DashboardShellPro
   useKeyboardShortcuts();
 
   return (
-    <div className="min-h-screen bg-[#f8fafc]">
+    <div className="min-h-screen bg-slate-50">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      {/* Main content area */}
-      <div className="lg:pl-64 min-h-screen flex flex-col">
+      {/* Main content area - matches sidebar width of w-56 (224px) */}
+      <div className="lg:pl-56 min-h-screen flex flex-col">
         <Header
           title={title}
           userEmail={userEmail}

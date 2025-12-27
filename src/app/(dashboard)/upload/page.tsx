@@ -1,293 +1,533 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { FileText, Upload, Files, Info, CheckCircle, AlertCircle, ArrowRight, Sparkles } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useDropzone } from 'react-dropzone';
+import {
+  Upload,
+  FileText,
+  X,
+  Check,
+  Loader2,
+  AlertCircle,
+  Clock,
+  ArrowRight,
+  Trash2,
+  RotateCcw,
+} from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
-import { DropZone } from '@/components/upload/DropZone';
-import { MetadataForm } from '@/components/upload/MetadataForm';
-import { UploadQueue } from '@/components/upload/UploadQueue';
-import { useFileUpload } from '@/lib/hooks/useFileUpload';
-import type { UploadMetadata } from '@/schemas/upload';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { cn } from '@/lib/utils';
+
+// ============================================
+// Types
+// ============================================
+
+interface RecentUpload {
+  id: string;
+  original_filename: string | null;
+  extraction_status: string;
+  detected_company_name: string | null;
+  confirmed_company_id: string | null;
+  created_at: string;
+}
+
+type UploadStatus = 'idle' | 'uploading' | 'processing' | 'complete' | 'error';
+
+// ============================================
+// Constants
+// ============================================
+
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+
+const fiscalYears = [
+  { value: '2024', label: '2024' },
+  { value: '2023', label: '2023' },
+  { value: '2022', label: '2022' },
+  { value: '2021', label: '2021' },
+  { value: '2020', label: '2020' },
+];
+
+// ============================================
+// Helper Functions
+// ============================================
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatTimeAgo(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+  if (seconds < 60) return 'Just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} hrs ago`;
+  return `${Math.floor(seconds / 86400)} days ago`;
+}
+
+function getStatusDisplay(status: string): { label: string; color: string; icon: React.ReactNode } {
+  switch (status) {
+    case 'completed':
+      return { label: 'Complete', color: 'text-green-600', icon: <Check className="h-4 w-4" /> };
+    case 'processing':
+    case 'extracting':
+      return { label: 'Processing', color: 'text-amber-600', icon: <Loader2 className="h-4 w-4 animate-spin" /> };
+    case 'failed':
+      return { label: 'Failed', color: 'text-red-600', icon: <AlertCircle className="h-4 w-4" /> };
+    default:
+      return { label: 'Pending', color: 'text-slate-500', icon: <Clock className="h-4 w-4" /> };
+  }
+}
+
+// ============================================
+// Main Component
+// ============================================
 
 export default function UploadPage() {
+  const router = useRouter();
+  const supabase = createClient();
+
+  // State
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploadResult, setUploadResult] = useState<{
-    success: boolean;
-    companyId?: string;
-    message?: string;
-  } | null>(null);
+  const [companyName, setCompanyName] = useState('');
+  const [rcsNumber, setRcsNumber] = useState('');
+  const [fiscalYear, setFiscalYear] = useState('');
+  const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle');
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadedCompanyId, setUploadedCompanyId] = useState<string | null>(null);
+  const [recentUploads, setRecentUploads] = useState<RecentUpload[]>([]);
 
-  const { upload, isUploading, progress, error, reset, status } = useFileUpload();
+  // Fetch recent uploads
+  const fetchRecentUploads = useCallback(async () => {
+    const { data } = await supabase
+      .from('uploaded_files')
+      .select('id, original_filename, extraction_status, detected_company_name, confirmed_company_id, created_at')
+      .order('created_at', { ascending: false })
+      .limit(10);
 
-  const handleSubmit = async (data: UploadMetadata) => {
+    if (data) {
+      setRecentUploads(data);
+    }
+  }, [supabase]);
+
+  useEffect(() => {
+    fetchRecentUploads();
+  }, [fetchRecentUploads]);
+
+  // Dropzone
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    if (acceptedFiles.length > 0) {
+      setSelectedFile(acceptedFiles[0]);
+      setUploadError(null);
+      setUploadStatus('idle');
+    }
+  }, []);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: { 'application/pdf': ['.pdf'] },
+    maxSize: MAX_FILE_SIZE,
+    multiple: false,
+    disabled: uploadStatus === 'uploading' || uploadStatus === 'processing',
+  });
+
+  // Handle upload
+  const handleUpload = async () => {
     if (!selectedFile) return;
 
-    setUploadResult(null);
+    setUploadStatus('uploading');
+    setUploadError(null);
 
-    const result = await upload(selectedFile, data);
+    try {
+      // Create form data
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      if (companyName) formData.append('companyName', companyName);
+      if (rcsNumber) formData.append('rcsNumber', rcsNumber);
+      if (fiscalYear) formData.append('fiscalYear', fiscalYear);
 
-    if (result.success && result.data) {
-      setUploadResult({
-        success: true,
-        companyId: result.data.companyId,
-        message: 'File uploaded successfully! The analysis will begin shortly.',
+      // Upload to API
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
       });
-      setSelectedFile(null);
-    } else {
-      setUploadResult({
-        success: false,
-        message: result.error || 'Upload failed. Please try again.',
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Upload failed');
+      }
+
+      setUploadStatus('processing');
+
+      // Trigger extraction
+      const extractResponse = await fetch('/api/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileId: result.data.fileId }),
       });
+
+      const extractResult = await extractResponse.json();
+
+      if (!extractResponse.ok) {
+        throw new Error(extractResult.error || 'Extraction failed');
+      }
+
+      setUploadStatus('complete');
+      setUploadedCompanyId(extractResult.data?.companyId);
+
+      // Refresh recent uploads
+      await fetchRecentUploads();
+
+      // Reset form after a delay
+      setTimeout(() => {
+        setSelectedFile(null);
+        setCompanyName('');
+        setRcsNumber('');
+        setFiscalYear('');
+      }, 2000);
+
+    } catch (err) {
+      setUploadStatus('error');
+      setUploadError(err instanceof Error ? err.message : 'An error occurred');
     }
   };
 
+  // Reset
   const handleReset = () => {
-    reset();
-    setUploadResult(null);
     setSelectedFile(null);
+    setCompanyName('');
+    setRcsNumber('');
+    setFiscalYear('');
+    setUploadStatus('idle');
+    setUploadError(null);
+    setUploadedCompanyId(null);
+  };
+
+  // Delete upload
+  const handleDeleteUpload = async (uploadId: string) => {
+    try {
+      // Get the file path first
+      const { data: file } = await supabase
+        .from('uploaded_files')
+        .select('file_path, batch_id')
+        .eq('id', uploadId)
+        .single();
+
+      if (file?.file_path) {
+        // Delete from storage
+        await supabase.storage
+          .from('financial-accounts')
+          .remove([file.file_path]);
+      }
+
+      // Delete the file record
+      await supabase
+        .from('uploaded_files')
+        .delete()
+        .eq('id', uploadId);
+
+      // Refresh the list
+      await fetchRecentUploads();
+    } catch (err) {
+      console.error('Failed to delete upload:', err);
+    }
+  };
+
+  // Retry extraction for failed/pending uploads
+  const handleRetryExtraction = async (uploadId: string) => {
+    try {
+      // Update status to extracting
+      await supabase
+        .from('uploaded_files')
+        .update({ extraction_status: 'extracting' })
+        .eq('id', uploadId);
+
+      // Trigger extraction
+      const extractResponse = await fetch('/api/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileId: uploadId }),
+      });
+
+      if (!extractResponse.ok) {
+        const result = await extractResponse.json();
+        throw new Error(result.error || 'Extraction failed');
+      }
+
+      // Refresh the list
+      await fetchRecentUploads();
+    } catch (err) {
+      console.error('Failed to retry extraction:', err);
+      // Mark as failed
+      await supabase
+        .from('uploaded_files')
+        .update({ extraction_status: 'failed' })
+        .eq('id', uploadId);
+      await fetchRecentUploads();
+    }
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="max-w-3xl mx-auto">
       {/* Page Header */}
-      <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-[#1e3a5f]">Upload Financial Accounts</h1>
-        <p className="text-gray-600">
-          Upload Luxembourg annual accounts in PDF format to identify transfer pricing opportunities.
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-slate-900">Upload Financial Accounts</h1>
+        <p className="text-sm text-slate-500 mt-1">
+          Upload Luxembourg annual accounts in PDF format for analysis
         </p>
       </div>
 
-      {/* Success Alert */}
-      {uploadResult?.success && (
-        <Alert className="bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200 shadow-sm">
-          <CheckCircle className="h-5 w-5 text-emerald-600" />
-          <AlertDescription className="text-emerald-800">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-emerald-500" />
-                <span className="font-medium">{uploadResult.message}</span>
+      {/* Success State */}
+      {uploadStatus === 'complete' && (
+        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                <Check className="h-5 w-5 text-green-600" />
               </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleReset}
-                  className="text-emerald-700 hover:text-emerald-800 hover:bg-emerald-100"
-                >
-                  Upload Another
-                </Button>
-                <Button
-                  asChild
-                  size="sm"
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                >
-                  <Link href="/processing">
-                    View Processing Queue
-                    <ArrowRight className="ml-1 h-4 w-4" />
-                  </Link>
-                </Button>
-                {uploadResult.companyId && (
-                  <Button
-                    asChild
-                    size="sm"
-                    variant="outline"
-                    className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-                  >
-                    <Link href={`/companies/${uploadResult.companyId}`}>
-                      View Company
-                    </Link>
-                  </Button>
-                )}
+              <div>
+                <p className="text-sm font-medium text-green-800">Upload complete!</p>
+                <p className="text-xs text-green-600">Analysis has started</p>
               </div>
             </div>
-          </AlertDescription>
-        </Alert>
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" onClick={handleReset}>
+                Upload Another
+              </Button>
+              {uploadedCompanyId && (
+                <Button size="sm" onClick={() => router.push(`/companies/${uploadedCompanyId}`)}>
+                  View Company <ArrowRight className="h-4 w-4 ml-1" />
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
-      {/* Error Alert */}
-      {(uploadResult?.success === false || error) && (
-        <Alert variant="destructive" className="shadow-sm">
-          <AlertCircle className="h-5 w-5" />
-          <AlertDescription className="font-medium">
-            {uploadResult?.message || error || 'An error occurred during upload.'}
-          </AlertDescription>
-        </Alert>
+      {/* Error State */}
+      {uploadStatus === 'error' && uploadError && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-red-800">Upload failed</p>
+              <p className="text-xs text-red-600">{uploadError}</p>
+            </div>
+            <Button variant="ghost" size="sm" onClick={handleReset}>
+              Try Again
+            </Button>
+          </div>
+        </div>
       )}
 
-      {/* Upload Tabs */}
-      <Tabs defaultValue="single" className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2 h-12 bg-gray-100 rounded-xl p-1">
-          <TabsTrigger
-            value="single"
-            className="flex items-center gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#1e3a5f] data-[state=active]:shadow-sm transition-all font-medium"
-          >
-            <FileText className="h-4 w-4" />
-            Single Upload
-          </TabsTrigger>
-          <TabsTrigger
-            value="bulk"
-            className="flex items-center gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#1e3a5f] data-[state=active]:shadow-sm transition-all font-medium"
-          >
-            <Files className="h-4 w-4" />
-            Bulk Upload
-          </TabsTrigger>
-        </TabsList>
+      {/* Main Upload Card */}
+      <div className="bg-white border border-slate-200 rounded-lg p-6 mb-6">
+        {/* Drop Zone */}
+        <div
+          {...getRootProps()}
+          className={cn(
+            'border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all',
+            isDragActive ? 'border-blue-400 bg-blue-50' : 'border-slate-300 hover:border-slate-400',
+            (uploadStatus === 'uploading' || uploadStatus === 'processing') && 'opacity-50 cursor-not-allowed'
+          )}
+        >
+          <input {...getInputProps()} />
 
-        {/* Single Upload Tab */}
-        <TabsContent value="single" className="mt-6">
-          {/* Instructions Banner */}
-          <div className="mb-6 bg-gradient-to-r from-[#1e3a5f]/5 to-[#d4a853]/5 border border-[#1e3a5f]/10 rounded-xl p-4">
-            <div className="flex gap-3">
-              <div className="w-10 h-10 rounded-lg bg-[#1e3a5f]/10 flex items-center justify-center flex-shrink-0">
-                <Info className="h-5 w-5 text-[#1e3a5f]" />
+          {selectedFile ? (
+            <div className="flex items-center justify-center gap-4">
+              <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center">
+                <FileText className="h-6 w-6 text-slate-600" />
               </div>
-              <div className="space-y-1">
-                <p className="font-semibold text-[#1e3a5f]">How it works</p>
-                <p className="text-sm text-gray-600">
-                  Upload a PDF of Luxembourg annual accounts. Our AI will extract financial data,
-                  identify intercompany transactions, and score the company for transfer pricing
-                  advisory potential.
+              <div className="text-left">
+                <p className="text-sm font-medium text-slate-900">{selectedFile.name}</p>
+                <p className="text-xs text-slate-500">{formatFileSize(selectedFile.size)}</p>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedFile(null);
+                }}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center mx-auto">
+                <Upload className="h-6 w-6 text-slate-400" />
+              </div>
+              <div>
+                <p className="text-sm text-slate-700">
+                  Drop PDF files here or <span className="text-blue-600 font-medium">browse</span>
                 </p>
+                <p className="text-xs text-slate-400 mt-1">Luxembourg annual accounts (PDF, max 50MB)</p>
               </div>
-            </div>
-          </div>
-
-          {/* Two Column Layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* LEFT COLUMN - File Upload */}
-            <Card className="bg-white shadow-tp border-0 rounded-xl h-fit">
-              <CardHeader className="pb-4 border-b border-gray-100">
-                <CardTitle className="text-lg font-semibold text-[#1e3a5f] flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-[#1e3a5f]/10 flex items-center justify-center">
-                    <Upload className="h-4 w-4 text-[#1e3a5f]" />
-                  </div>
-                  Select Document
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-6">
-                <DropZone
-                  selectedFile={selectedFile}
-                  onFileSelect={setSelectedFile}
-                  disabled={isUploading}
-                />
-              </CardContent>
-            </Card>
-
-            {/* RIGHT COLUMN - Metadata Form */}
-            <Card className="bg-white shadow-tp border-0 rounded-xl">
-              <CardHeader className="pb-4 border-b border-gray-100">
-                <CardTitle className="text-lg font-semibold text-[#1e3a5f] flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-[#d4a853]/10 flex items-center justify-center">
-                    <FileText className="h-4 w-4 text-[#d4a853]" />
-                  </div>
-                  Company Details
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-6">
-                <MetadataForm
-                  onSubmit={handleSubmit}
-                  isLoading={isUploading}
-                  hasFile={selectedFile !== null}
-                />
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Upload Queue - Shows during upload */}
-          {isUploading && selectedFile && (
-            <div className="mt-6">
-              <UploadQueue
-                fileName={selectedFile.name}
-                fileSize={selectedFile.size}
-                progress={progress}
-                status={status}
-              />
             </div>
           )}
-        </TabsContent>
+        </div>
 
-        {/* Bulk Upload Tab */}
-        <TabsContent value="bulk" className="mt-6">
-          <Card className="bg-white shadow-tp border-0 rounded-xl">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold text-[#1e3a5f] flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
-                  <Files className="h-4 w-4 text-gray-500" />
-                </div>
-                Bulk Upload
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center mb-6 shadow-sm">
-                  <Files className="h-10 w-10 text-gray-400" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-700 mb-2">
-                  Bulk Upload Coming Soon
-                </h3>
-                <p className="text-sm text-gray-500 max-w-md mb-6">
-                  Upload multiple PDFs at once with automatic metadata extraction from filenames.
-                  This feature will be available in a future update.
-                </p>
-                <div className="flex items-center gap-2 text-xs text-gray-400">
-                  <Sparkles className="h-4 w-4" />
-                  <span>Expected features: drag multiple files, batch processing, CSV import</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+        {/* Optional Details */}
+        <div className="mt-6 pt-6 border-t border-slate-100">
+          <p className="text-xs text-slate-500 uppercase font-medium mb-4">
+            Optional Details (Claude will auto-detect if left blank)
+          </p>
 
-      {/* Help Section */}
-      <Card className="bg-white shadow-tp border-0 rounded-xl">
-        <CardHeader className="pb-4 border-b border-gray-100">
-          <CardTitle className="text-lg font-semibold text-[#1e3a5f]">
-            Supported Documents
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="flex gap-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-100 to-emerald-50 flex items-center justify-center flex-shrink-0 shadow-sm">
-                <CheckCircle className="h-6 w-6 text-emerald-600" />
-              </div>
-              <div className="space-y-1">
-                <h4 className="font-semibold text-gray-900">Annual Accounts</h4>
-                <p className="text-sm text-gray-500">
-                  Luxembourg statutory annual accounts (bilan, compte de profits et pertes)
-                </p>
-              </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="companyName" className="text-xs text-slate-600">
+                Company Name
+              </Label>
+              <Input
+                id="companyName"
+                placeholder="Auto-detect"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                disabled={uploadStatus === 'uploading' || uploadStatus === 'processing'}
+                className="h-9 text-sm"
+              />
             </div>
-            <div className="flex gap-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-100 to-emerald-50 flex items-center justify-center flex-shrink-0 shadow-sm">
-                <CheckCircle className="h-6 w-6 text-emerald-600" />
-              </div>
-              <div className="space-y-1">
-                <h4 className="font-semibold text-gray-900">PDF Format</h4>
-                <p className="text-sm text-gray-500">
-                  Standard PDF files up to 50MB. Scanned documents with OCR are supported.
-                </p>
-              </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="rcsNumber" className="text-xs text-slate-600">
+                RCS Number
+              </Label>
+              <Input
+                id="rcsNumber"
+                placeholder="B123456"
+                value={rcsNumber}
+                onChange={(e) => setRcsNumber(e.target.value)}
+                disabled={uploadStatus === 'uploading' || uploadStatus === 'processing'}
+                className="h-9 text-sm"
+              />
             </div>
-            <div className="flex gap-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-100 to-emerald-50 flex items-center justify-center flex-shrink-0 shadow-sm">
-                <CheckCircle className="h-6 w-6 text-emerald-600" />
-              </div>
-              <div className="space-y-1">
-                <h4 className="font-semibold text-gray-900">RCS Filings</h4>
-                <p className="text-sm text-gray-500">
-                  Documents downloaded from the Luxembourg Business Registers (LBR)
-                </p>
-              </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs text-slate-600">Fiscal Year</Label>
+              <Select
+                value={fiscalYear}
+                onValueChange={setFiscalYear}
+                disabled={uploadStatus === 'uploading' || uploadStatus === 'processing'}
+              >
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Auto-detect" />
+                </SelectTrigger>
+                <SelectContent>
+                  {fiscalYears.map((year) => (
+                    <SelectItem key={year.value} value={year.value}>
+                      {year.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+
+        {/* Upload Button */}
+        <div className="mt-6">
+          <Button
+            onClick={handleUpload}
+            disabled={!selectedFile || uploadStatus === 'uploading' || uploadStatus === 'processing'}
+            className="w-full h-10"
+          >
+            {uploadStatus === 'uploading' ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Uploading...
+              </>
+            ) : uploadStatus === 'processing' ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Analyzing...
+              </>
+            ) : (
+              <>
+                <Upload className="h-4 w-4 mr-2" />
+                Upload & Analyze
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+
+      {/* Recent Uploads */}
+      {recentUploads.length > 0 && (
+        <div className="bg-white border border-slate-200 rounded-lg">
+          <div className="px-5 py-4 border-b border-slate-100">
+            <h2 className="text-sm font-semibold text-slate-900">Recent Uploads</h2>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {recentUploads.map((upload) => {
+              const status = getStatusDisplay(upload.extraction_status);
+              return (
+                <div key={upload.id} className="px-5 py-3 flex items-center justify-between hover:bg-slate-50">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <FileText className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm text-slate-900 truncate">{upload.original_filename || 'Unnamed file'}</p>
+                      <p className="text-xs text-slate-500">
+                        {upload.detected_company_name || 'Processing...'} &middot; {formatTimeAgo(upload.created_at)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className={cn('flex items-center gap-1.5 text-xs font-medium', status.color)}>
+                      {status.icon}
+                      {status.label}
+                    </div>
+                    {/* Retry button for failed or pending uploads */}
+                    {(upload.extraction_status === 'failed' || upload.extraction_status === 'pending') && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-slate-500 hover:text-blue-600"
+                        onClick={() => handleRetryExtraction(upload.id)}
+                        title="Retry extraction"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    {/* View button for completed uploads */}
+                    {upload.extraction_status === 'completed' && upload.confirmed_company_id && (
+                      <Button variant="ghost" size="sm" asChild className="h-7 text-xs">
+                        <Link href={`/companies/${upload.confirmed_company_id}`}>View</Link>
+                      </Button>
+                    )}
+                    {/* Delete button for all uploads */}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-slate-400 hover:text-red-600"
+                      onClick={() => handleDeleteUpload(upload.id)}
+                      title="Delete upload"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

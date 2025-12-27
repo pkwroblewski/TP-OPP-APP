@@ -3,15 +3,11 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard,
-  Upload,
   Building2,
-  Loader,
-  BarChart3,
+  Upload,
+  Target,
   Settings,
   X,
-  Target,
-  ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -21,64 +17,67 @@ interface SidebarProps {
   onClose: () => void;
 }
 
+// Simplified navigation - only 4 main items per redesign spec
 const navItems = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/upload', label: 'Upload', icon: Upload },
-  { href: '/companies', label: 'Companies', icon: Building2 },
-  { href: '/opportunities', label: 'Opportunities', icon: Target },
-  { href: '/processing', label: 'Processing', icon: Loader },
-  { href: '/analytics', label: 'Analytics', icon: BarChart3 },
-  { href: '/settings', label: 'Settings', icon: Settings },
+  { href: '/companies', label: 'Companies', icon: Building2, description: 'View and analyze companies' },
+  { href: '/upload', label: 'Upload', icon: Upload, description: 'Upload annual accounts' },
+  { href: '/opportunities', label: 'Opportunities', icon: Target, description: 'High-priority targets' },
+  { href: '/settings', label: 'Settings', icon: Settings, description: 'Configure preferences' },
 ];
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
+
+  // Determine active item - companies page is default for root
+  const getIsActive = (href: string) => {
+    if (href === '/companies') {
+      return pathname === '/' || pathname === '/companies' || pathname.startsWith('/companies/');
+    }
+    return pathname === href || pathname.startsWith(href + '/');
+  };
 
   return (
     <>
       {/* Mobile overlay */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm"
+          className="fixed inset-0 bg-black/40 z-40 lg:hidden"
           onClick={onClose}
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar - Clean, professional Big Four aesthetic */}
       <aside
         className={cn(
-          'fixed top-0 left-0 z-50 h-full w-64 bg-[#1e3a5f] text-white',
-          'transition-transform duration-300 ease-in-out lg:translate-x-0',
-          'flex flex-col shadow-xl',
+          'fixed top-0 left-0 z-50 h-full w-56 bg-slate-900 text-white',
+          'transition-transform duration-200 ease-out lg:translate-x-0',
+          'flex flex-col',
           isOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
-        {/* Logo / App Name */}
-        <div className="flex items-center justify-between p-5 border-b border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-[#d4a853] to-[#c49843] rounded-xl flex items-center justify-center shadow-lg">
-              <span className="text-[#1e3a5f] font-bold text-lg">TP</span>
+        {/* Logo - Minimal */}
+        <div className="flex items-center justify-between h-14 px-4 border-b border-slate-800">
+          <Link href="/companies" className="flex items-center gap-2">
+            <div className="w-7 h-7 bg-amber-500 rounded flex items-center justify-center">
+              <span className="text-slate-900 font-bold text-xs">TP</span>
             </div>
-            <div>
-              <h1 className="font-semibold text-sm tracking-wide">TP Opportunity</h1>
-              <p className="text-xs text-white/50">Finder</p>
-            </div>
-          </div>
+            <span className="font-semibold text-sm tracking-tight">TP Finder</span>
+          </Link>
           {/* Mobile close button */}
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden text-white hover:bg-white/10 rounded-lg"
+            className="lg:hidden text-slate-400 hover:text-white hover:bg-slate-800 h-8 w-8"
             onClick={onClose}
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </Button>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto tp-scrollbar">
+        {/* Navigation - Clean, minimal */}
+        <nav className="flex-1 py-4 px-2">
           {navItems.map((item) => {
-            const isActive = pathname === item.href;
+            const isActive = getIsActive(item.href);
             const Icon = item.icon;
 
             return (
@@ -87,38 +86,24 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 href={item.href}
                 onClick={onClose}
                 className={cn(
-                  'group flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200',
-                  'border-l-4',
+                  'flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors mb-1',
                   isActive
-                    ? 'bg-white/10 border-[#d4a853] text-white font-medium'
-                    : 'border-transparent text-gray-300 hover:bg-white/5 hover:text-white hover:border-white/20'
+                    ? 'bg-slate-800 text-white'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
                 )}
               >
-                <Icon
-                  className={cn(
-                    'h-5 w-5 transition-colors duration-200',
-                    isActive ? 'text-[#d4a853]' : 'text-gray-400 group-hover:text-gray-300'
-                  )}
-                />
-                <span className="flex-1">{item.label}</span>
-                {isActive && (
-                  <ChevronRight className="h-4 w-4 text-[#d4a853]" />
-                )}
+                <Icon className={cn('h-4 w-4', isActive ? 'text-amber-500' : '')} />
+                <span>{item.label}</span>
               </Link>
             );
           })}
         </nav>
 
-        {/* Footer */}
-        <div className="p-4 border-t border-white/10">
-          <div className="bg-white/5 rounded-lg p-3">
-            <p className="text-xs text-white/60 text-center">
-              Transfer Pricing Analysis Tool
-            </p>
-            <p className="text-[10px] text-white/40 text-center mt-1">
-              v1.0 • Luxembourg
-            </p>
-          </div>
+        {/* Footer - Version info */}
+        <div className="px-4 py-3 border-t border-slate-800">
+          <p className="text-[10px] text-slate-500 text-center">
+            Luxembourg TP Analysis
+          </p>
         </div>
       </aside>
     </>

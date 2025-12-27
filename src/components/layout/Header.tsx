@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { Menu, LogOut, Settings, User, Search, Bell, ChevronDown } from 'lucide-react';
+import { Menu, LogOut, Settings, Search } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import {
@@ -40,100 +40,76 @@ export function Header({ title, userEmail, onMenuClick }: HeaderProps) {
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-white border-b border-gray-100 shadow-sm">
-      <div className="flex items-center justify-between h-16 px-4 lg:px-6">
+    <header className="sticky top-0 z-30 bg-white border-b border-slate-200">
+      <div className="flex items-center justify-between h-14 px-4">
         {/* Left side: Menu button (mobile) + Title */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden text-[#1e3a5f] hover:bg-gray-100 rounded-lg"
+            className="lg:hidden text-slate-600 hover:bg-slate-100 h-8 w-8"
             onClick={onMenuClick}
           >
-            <Menu className="h-5 w-5" />
+            <Menu className="h-4 w-4" />
           </Button>
-          <div>
-            <h1 className="text-xl font-semibold text-[#1e3a5f]">{title}</h1>
-          </div>
+          <h1 className="text-base font-medium text-slate-900">{title}</h1>
         </div>
 
-        {/* Center: Search button */}
+        {/* Center: Search - minimal */}
         <Button
-          variant="outline"
-          className="hidden md:flex items-center gap-2 text-gray-500 w-72 justify-start
-                     border-gray-200 hover:border-[#1e3a5f]/30 hover:bg-gray-50
-                     rounded-lg transition-all duration-200"
+          variant="ghost"
+          className="hidden md:flex items-center gap-2 text-slate-500 h-8 px-3
+                     hover:bg-slate-100 rounded-md"
           onClick={() => setSearchOpen(true)}
         >
           <Search className="h-4 w-4" />
-          <span className="text-sm">Search companies...</span>
-          <kbd className="ml-auto pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border border-gray-200 bg-gray-50 px-1.5 font-mono text-[10px] font-medium text-gray-400">
-            <span className="text-xs">⌘</span>K
+          <span className="text-sm">Search</span>
+          <kbd className="ml-2 text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+            /
           </kbd>
         </Button>
 
-        {/* Right side: Notifications + User menu */}
-        <div className="flex items-center gap-2">
-          {/* Notifications */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-gray-500 hover:text-[#1e3a5f] hover:bg-gray-100 rounded-lg relative"
-          >
-            <Bell className="h-5 w-5" />
-            {/* Notification dot */}
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#d4a853] rounded-full" />
-          </Button>
-
-          {/* User menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                className="flex items-center gap-2 hover:bg-gray-100 rounded-lg px-2 py-1.5 h-auto"
-              >
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#1e3a5f] to-[#2a4a7f] flex items-center justify-center shadow-sm">
-                  <span className="text-white text-sm font-medium">
-                    {userEmail ? getInitials(userEmail) : <User className="h-4 w-4" />}
-                  </span>
-                </div>
-                <div className="hidden sm:flex flex-col items-start">
-                  <span className="text-sm font-medium text-gray-700">
-                    {userEmail ? userEmail.split('@')[0] : 'User'}
-                  </span>
-                  <span className="text-xs text-gray-400">Admin</span>
-                </div>
-                <ChevronDown className="h-4 w-4 text-gray-400 hidden sm:block" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 p-2">
-              <div className="px-2 py-1.5 mb-2">
-                <p className="text-sm font-medium text-gray-900">
-                  {userEmail ? userEmail.split('@')[0] : 'User'}
-                </p>
-                <p className="text-xs text-gray-500 truncate">
-                  {userEmail || 'user@example.com'}
-                </p>
+        {/* Right side: User menu - minimal */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              className="flex items-center gap-2 hover:bg-slate-100 h-8 px-2"
+            >
+              <div className="w-6 h-6 rounded bg-slate-900 flex items-center justify-center">
+                <span className="text-white text-[10px] font-medium">
+                  {userEmail ? getInitials(userEmail) : 'U'}
+                </span>
               </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => router.push('/settings')}
-                className="cursor-pointer rounded-lg"
-              >
-                <Settings className="mr-2 h-4 w-4 text-gray-500" />
-                Settings
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={handleSignOut}
-                className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50 rounded-lg"
-              >
-                <LogOut className="mr-2 h-4 w-4" />
-                Sign Out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+              <span className="hidden sm:inline text-sm text-slate-600">
+                {userEmail ? userEmail.split('@')[0] : 'User'}
+              </span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <div className="px-2 py-1.5">
+              <p className="text-xs text-slate-500 truncate">
+                {userEmail || 'user@example.com'}
+              </p>
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => router.push('/settings')}
+              className="cursor-pointer text-sm"
+            >
+              <Settings className="mr-2 h-3.5 w-3.5 text-slate-500" />
+              Settings
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={handleSignOut}
+              className="cursor-pointer text-sm text-red-600 focus:text-red-600 focus:bg-red-50"
+            >
+              <LogOut className="mr-2 h-3.5 w-3.5" />
+              Sign Out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Search Command Palette */}

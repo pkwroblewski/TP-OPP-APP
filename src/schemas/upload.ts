@@ -53,28 +53,34 @@ export const countries = [
 // RCS Number validation pattern (B followed by digits)
 const rcsPattern = /^B\d+$/i;
 
-// File upload metadata schema
+// File upload metadata schema - all fields optional for auto-detection
 export const uploadMetadataSchema = z.object({
   rcsNumber: z
     .string()
-    .min(1, 'RCS number is required')
-    .regex(rcsPattern, 'RCS number must start with B followed by digits (e.g., B123456)'),
+    .regex(rcsPattern, 'RCS number must start with B followed by digits (e.g., B123456)')
+    .optional()
+    .or(z.literal('')),
   companyName: z
     .string()
-    .min(1, 'Company name is required')
-    .min(2, 'Company name must be at least 2 characters'),
+    .min(2, 'Company name must be at least 2 characters')
+    .optional()
+    .or(z.literal('')),
   fiscalYear: z
     .string()
-    .min(1, 'Fiscal year is required'),
+    .optional()
+    .or(z.literal('')),
   legalForm: z
     .string()
-    .min(1, 'Legal form is required'),
+    .optional()
+    .or(z.literal('')),
   parentCompanyName: z
     .string()
-    .optional(),
+    .optional()
+    .or(z.literal('')),
   parentCountry: z
     .string()
-    .optional(),
+    .optional()
+    .or(z.literal('')),
 });
 
 export type UploadMetadata = z.infer<typeof uploadMetadataSchema>;

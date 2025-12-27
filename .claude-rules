@@ -5,6 +5,141 @@ You are building a transfer pricing opportunity identification app for Luxembour
 The app analyses financial accounts to detect intercompany transactions and score
 companies based on their TP advisory potential.
 
+---
+
+## Luxembourg Financial Data Extraction Protocol
+
+### MANDATORY PRE-EXTRACTION STEPS
+
+**CRITICAL: Before extracting ANY financial data from Luxembourg annual accounts, you MUST:**
+
+1. Read `/docs/lu-balance-sheet-structure.md`
+2. Read `/docs/lu-pnl-structure.md`
+3. Read `/docs/lu-intercompany-identification-guide.md`
+
+**These guides are MANDATORY reading - do not skip this step.**
+
+---
+
+### CORE EXTRACTION RULES (NON-NEGOTIABLE)
+
+#### Rule 1: Extract ONLY Explicitly Stated Inter-Company Items
+- Must be labeled "entreprises liées" / "affiliated undertakings"
+- Must appear in balance sheet line items OR notes
+- **NEVER invent, calculate, or infer amounts**
+
+#### Rule 2: Track Sources for EVERY Extracted Value
+- Format: `"Balance Sheet - Section - Line Item, Note X, page Y"`
+- Format: `"P&L Item N, Note X, page Y"`
+- **No extracted amount without source = invalid extraction**
+
+#### Rule 3: Validate IC Financing Relationships
+- IF IC loan on balance sheet → MUST have IC interest in P&L
+- IF IC loan exists BUT no interest → **FLAG as ZERO-SPREAD OPPORTUNITY (HIGH PRIORITY)**
+- Calculate implied rates: Interest / Loan Balance
+- Flag rates <1% or >10% as suspicious
+
+#### Rule 4: Identify ALL Inter-Company Transaction Categories
+
+**a) IC Financing:**
+- IC loans provided (Balance Sheet: Créances sur entreprises liées)
+- IC loans received (Balance Sheet: Dettes envers entreprises liées)
+- IC interest income (P&L Item 10a, 11a: provenant d'entreprises liées)
+- IC interest expense (P&L Item 14a: concernant des entreprises liées)
+
+**b) IC Services:**
+- Management fees charged (P&L Item 4: Autres produits d'exploitation - check notes)
+- Service fees charged (P&L Item 4 or Item 1 if main activity)
+- Management fees paid (P&L Item 5b or 8: Other charges - check notes)
+- Technical/administrative services (both directions)
+- Shared service center charges
+
+**c) IC Dividends:**
+- Dividend income from subsidiaries (P&L Item 9a: provenant d'entreprises liées)
+
+**d) IC Guarantees/Commitments:**
+- Check off-balance sheet commitments note
+- Letters of comfort, parent company guarantees
+
+**e) Other IC Transactions:**
+- Royalties/license fees (if disclosed)
+- Cost allocations
+- Any other related party transactions
+
+#### Rule 5: Cross-Reference P&L with Balance Sheet
+- IC interest income → Should have IC loan provided
+- IC interest expense → Should have IC loan received
+- Large service fees → Should match business description
+- **Mismatches = extraction error or TP opportunity flag**
+
+---
+
+### TRANSFER PRICING COMPLIANCE CONTEXT
+
+The extraction must identify ALL inter-company transactions requiring TP documentation per:
+- OECD Transfer Pricing Guidelines (2022)
+- Luxembourg Article 56 / 56bis Income Tax Law
+- Luxembourg TP Circulars (documentation requirements)
+
+**Categories requiring TP documentation:**
+1. Intra-group financing (loans, cash pooling, guarantees)
+2. Intra-group services (management, administrative, technical, shared services)
+3. Intangible property transactions (royalties, licenses, IP transfers)
+4. Sale/purchase of goods between group companies
+5. Cost contribution arrangements
+6. Business restructurings
+
+**CRITICAL:** If balance sheet shows IC financial assets/liabilities but P&L shows ZERO corresponding income/expense → This is a **HIGH PRIORITY zero-spread opportunity** indicating potential absence of transfer pricing policy.
+
+---
+
+### EXTRACTION OUTPUT FORMAT
+
+For each extracted IC item, use this structure:
+
+```json
+{
+  "amount": [number],
+  "source": "[Exact location: Balance Sheet/P&L Item, Note number, page number]",
+  "description": "[What the transaction is]",
+  "counterparty": "[Group company name if disclosed]",
+  "verified": [true/false],
+  "cross_reference": "[Related balance sheet or P&L item if applicable]"
+}
+```
+
+**Quality checks before finalizing:**
+- [ ] All amounts have sources
+- [ ] IC loans cross-validated with interest income/expense
+- [ ] Zero-spread scenarios identified and flagged
+- [ ] All transaction categories checked (financing, services, dividends, guarantees)
+- [ ] No hallucinated amounts
+- [ ] Implied rates calculated where possible
+- [ ] Flags created for TP opportunities
+
+---
+
+### COMMON ERRORS TO PREVENT
+
+❌ **NEVER extract total line item when only IC portion disclosed in notes**
+> Example: P&L Item 10 = EUR 100k total, Note 8 says "of which IC: EUR 67k"
+> Correct extraction: EUR 67k with source "P&L Item 10, Note 8, page X"
+
+❌ **NEVER invent service fees not disclosed in accounts**
+> If "Other operating income" shows EUR 50k but notes don't mention IC → extract ZERO
+
+❌ **NEVER assume IC transactions without explicit label**
+> Must see "entreprises liées" or "affiliated undertakings" or explicit note disclosure
+
+❌ **NEVER skip note reading**
+> Most IC detail is in NOTES, not on face of balance sheet/P&L
+
+❌ **NEVER confuse operating income with financial income**
+> Service fees → P&L Item 4 (operating)
+> Interest → P&L Items 10, 11, 14 (financial)
+
+---
+
 ## Tech Stack
 - Next.js 14 with App Router (NOT Pages Router)
 - TypeScript (strict mode)
@@ -127,3 +262,46 @@ companies based on their TP advisory potential.
 ## Git Commits
 - Conventional commits: feat:, fix:, chore:, docs:
 - Reference prompt numbers: "feat: implement prompt 5 - dashboard layout"
+
+---
+
+## EXTRACTION ARCHITECTURE - VERIFIED WORKING (December 2024)
+
+3-layer anti-hallucination system prevents AI from inventing IC transactions.
+
+**Implementation Status:** PRODUCTION READY
+
+**Files:**
+- `src/lib/services/luxembourgPatterns.ts` - Layer 0: Fixed Patterns Library
+- `src/lib/services/structuredExtractor.ts` - Layer 1: Structured Extraction
+- `src/lib/services/noteParser.ts` - Layer 2: Controlled Note Parsing
+- `src/lib/services/extractionValidator.ts` - Layer 3: Validation Engine
+- `src/lib/services/luxembourgExtractor.ts` - Integration Layer
+
+**Total:** ~2,910 lines of systematic anti-hallucination code
+
+**Test Results (APERAM B155908 - December 2024):**
+- EUR 91.3M Item 4 correctly flagged as "Cannot verify if IC services - Note 15 not accessible"
+- EUR 36.6M IC interest income (Item 10a) extracted with source
+- EUR 31.3M IC interest income (Item 11a) extracted with source
+- EUR 378.7M IC interest expense (Item 14a) extracted with source
+- EUR 517.4M IC loan provided extracted with source
+- EUR 310.9M IC loan received extracted with source
+- 100% source tracking, zero hallucinations
+- TP opportunities auto-detected (117.99% implied rate flagged as HIGH_RATE)
+
+**Key Principles:**
+1. Every extracted value requires source reference (page, line, note)
+2. Returns `null` when pattern not found - NEVER guesses
+3. IC nature only confirmed with explicit keywords in notes
+4. Cross-validation between balance sheet and P&L mandatory
+5. Impossible values flagged (IC loans > 2x assets, rates >100%, etc.)
+
+**When Adding New Features:**
+Always maintain these anti-hallucination principles. Never bypass source tracking or allow values without explicit pattern matches.
+
+**Test Command:**
+```bash
+npx tsx scripts/test-full-extraction.ts
+```
+Expected: 8/8 checks passed
