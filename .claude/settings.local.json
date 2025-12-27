@@ -22,7 +22,8 @@
       "Bash(curl:*)",
       "Bash(node -e:*)",
       "Bash(timeout /t 8 /nobreak)",
-      "Bash(supabase --version:*)"
+      "Bash(supabase --version:*)",
+      "Bash(git push:*)"
     ]
   }
 }
