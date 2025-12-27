@@ -2,8 +2,7 @@ services:
 - type: worker
   name: tp-worker
   env: docker
-  rootDir: worker
-  dockerfilePath: worker/Dockerfile
+  dockerfilePath: worker/Dockerfile   # path is from repo root
   autoDeploy: true
   envVars:
   - key: SUPABASE_DB_URL
@@ -14,4 +13,3 @@ services:
     sync: false
   - key: SUPABASE_BUCKET
     value: filings
-
